@@ -83,7 +83,7 @@ def main():
         "--fosquitto-dir",
         type=lambda x: directory_path(x),
         help="path to fosquitto subordinates dir",
-        default=pathlib.Path("/etc/fosquitto/"),
+        default=pathlib.Path("/etc/fosquitto/bridges"),
     )
 
     options = parser.parse_args()

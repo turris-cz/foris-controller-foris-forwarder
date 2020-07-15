@@ -1,0 +1,42 @@
+config global 'global'
+	option debug '0'
+
+config local 'local'
+	option port '11883'
+
+config remote 'remote'
+	option port '11884'
+	option enabled '1'
+
+# ok
+config subordinate '0000000A00000214'
+	option address '192.168.15.158'
+	option port '11884'
+	option enabled '1'
+
+# malformed fosquitto conf dir
+config subordinate '0000D858D7001A2E'
+	option address '192.168.11.103'
+	option port '11884'
+	option enabled '1'
+
+# missing fosquitto dir config
+config subordinate '0000000D30000005'
+	option enabled '1'
+	option address '192.168.15.254'
+	option port '11884'
+
+# ok
+config subsubordinate '1100D858D7001A2E'
+	option via '0000000A00000214'
+	option enabled '1'
+
+# via not properly configured
+config subsubordinate '2200D858D7001A2E'
+	option via '0000D858D7001A2E'
+	option enabled '1'
+
+# via missing
+config subsubordinate '3300D858D7001A2E'
+	option via 'FFFFFFFFFFFFFFFF'
+	option enabled '1'
