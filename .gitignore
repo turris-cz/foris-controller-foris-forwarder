@@ -1,0 +1,9 @@
+/*.egg-info
+/build
+/dist
+/.eggs
+/.cache
+/.gitignore
+*.swo
+*.swp
+*.pyc

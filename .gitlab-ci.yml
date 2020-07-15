@@ -1,0 +1,22 @@
+before_script:
+  - pip install virtualenv
+  - virtualenv -p "$(which python)" /tmp/test
+
+stages:
+  - code-quality
+
+pytest:
+  image: registry.labs.nic.cz/turris/foris-ci/python3
+  stage: code-quality
+  script:
+    - source /tmp/test/bin/activate
+    - pip install .
+    - python setup.py test
+
+pre-commit:
+  image: registry.labs.nic.cz/turris/foris-ci/python3
+  stage: code-quality
+  script:
+    - source /tmp/test/bin/activate
+    - pip install .[dev]
+    - pre-commit run --hook-stage push --all-files
