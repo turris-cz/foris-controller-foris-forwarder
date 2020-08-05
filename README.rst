@@ -18,3 +18,20 @@ Installation
 Usage
 =====
 TBD
+
+
+Developer Docs
+==============
+
+Architecture
+------------
+
+TBD
+
+Testing
+-------
+
+Requirements:
+
+* mosquitto binary (for mocking mosquitto server)
+* python >= 3.6
