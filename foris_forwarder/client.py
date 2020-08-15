@@ -17,7 +17,6 @@
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 #
 
-import json
 import logging
 import pathlib
 import threading
@@ -25,10 +24,11 @@ import typing
 
 from paho.mqtt import client as mqtt
 
-logger = logging.getLogger(__file__)
+from .logger import LoggingMixin
 
 
 class Settings:
+    controller_id: str
     host: typing.Optional[str] = None
     port: int = 0
     ca_certs: typing.Optional[pathlib.Path] = None
@@ -40,8 +40,15 @@ class Settings:
 
 class CertificateSettings(Settings):
     def __init__(
-        self, host: str, port: int, ca_certs: pathlib.Path, certfile: pathlib.Path, keyfile: pathlib.Path,
+        self,
+        controller_id: str,
+        host: str,
+        port: int,
+        ca_certs: pathlib.Path,
+        certfile: pathlib.Path,
+        keyfile: pathlib.Path,
     ):
+        self.controller_id = controller_id
         self.host = host
         self.port = port
         self.ca_certs = ca_certs
@@ -50,14 +57,15 @@ class CertificateSettings(Settings):
 
 
 class PasswordSettings(Settings):
-    def __init__(self, port: int, username: str, password: str):
+    def __init__(self, controller_id: str, port: int, username: str, password: str):
+        self.controller_id = controller_id
         self.host = "127.0.0.1"
         self.port = port
         self.username = username
         self.password = password
 
 
-class Client:
+class Client(LoggingMixin):
     """ Class which handle connection to one message bus (basically a wrapper arount MQTTClient)
 
         It listens to one mqtt bus and triggers a handler with incomming data
@@ -67,8 +75,11 @@ class Client:
 
     KEEPALIVE = 30
 
-    def __init__(self, name: str, settings: Settings, listen_filters=[], send_filters=[]):
+    logger = logging.getLogger(__file__)
+
+    def __init__(self, settings: Settings, name: typing.Optional[str] = None):
         self.name = name
+        self.controller_id = settings.controller_id
         self.settings = settings
         self.connect_hook: typing.Optional[typing.Callable[[mqtt.Client, dict, dict, int], None]] = None
         self.disconnect_hook: typing.Optional[typing.Callable[[mqtt.Client, dict, int], None]] = None
@@ -83,22 +94,7 @@ class Client:
         self.client: typing.Optional[mqtt.Client] = None
 
     def __str__(self):
-        return f"{self.name}-forwarder"
-
-    def warning(self, template, *args, **kwargs):
-        logger.warning(f"%s: {template}", self, *args, **kwargs)
-
-    def debug(self, template, *args, **kwargs):
-        logger.debug(f"%s: {template}", self, *args, **kwargs)
-
-    def info(self, template, *args, **kwargs):
-        logger.info(f"%s: {template}", self, *args, **kwargs)
-
-    def error(self, template, *args, **kwargs):
-        logger.error(f"%s: {template}", self, *args, **kwargs)
-
-    def critical(self, template, *args, **kwargs):
-        logger.critical(f"%s: {template}", self, *args, **kwargs)
+        return f"{self.controller_id}"
 
     def update(self, settings):
         raise NotImplementedError
@@ -132,8 +128,8 @@ class Client:
 
     def connect(self):
 
-        self.client = mqtt.Client(client_id=str(self), clean_session=False)
-        self.client.enable_logger(logger)
+        self.client = mqtt.Client(client_id=self.name or str(self), clean_session=False)
+        self.client.enable_logger(self.logger)
 
         if self.settings.ca_certs and self.settings.certfile and self.settings.keyfile:
             self.client.tls_set(*map(str, (self.settings.ca_certs, self.settings.certfile, self.settings.keyfile)))
@@ -143,20 +139,20 @@ class Client:
 
         def on_connect(client, userdata, flags, rc):
             self.debug(
-                "Forwarded %s is trying to connect to %s:%d", self, self.settings.host, self.settings.port,
+                "Forwarded trying to connect to %s:%d", self.settings.host, self.settings.port,
             )
             if rc == 0:
-                self.debug("Connected to %s - %s:%d", self, self.settings.host, self.settings.port)
+                self.debug("Connected to %s:%d", self.settings.host, self.settings.port)
                 self._connected.set()
             else:
-                self.warning("Failed to connect to %s - %s:%d", self, self.settings.host, self.settings.port)
+                self.warning("Failed to connect to %s:%d", self.settings.host, self.settings.port)
 
             if self.connect_hook:
                 self.connect_hook(client, userdata, flags, rc)
 
         def on_disconnect(client, userdata, rc):
             if rc == 0:
-                self.debug("Disconnected from %s - %s:%d", self, self.settings.host, self.settings.port)
+                self.debug("Disconnected from %s:%d", self.settings.host, self.settings.port)
 
             self._connected.clear()
 
@@ -169,7 +165,7 @@ class Client:
                 self.publish_hook(client, userdata, mid)
 
         def on_subscribe(client, userdata, mid, granted_qos):
-            self.debug("Subscribed (mid=%d) was published")
+            self.debug("Subscribed (mid=%d) was published", mid)
             if self.subscribe_hook:
                 self.subscribe_hook(client, userdata, mid, granted_qos)
 
@@ -187,14 +183,14 @@ class Client:
 
         self.client.loop_start()
 
-    def publish(self, topic: str, data: typing.Optional[dict]) -> typing.Optional[int]:
+    def publish(self, topic: str, data: str) -> typing.Optional[int]:
         """ Publishes messages
 
         This doesn't mean that the message was acutally sent.
         on_publish hook should be checked to determined whether the message was sent
         """
         if self.connected and self.client is not None:
-            message = self.client.publish(topic, json.dumps(data, separators=(",", ":")))
+            message = self.client.publish(topic, data)
             # this doesn't mean that the message was publish (on_publish callback)
             if message.rc == mqtt.MQTT_ERR_SUCCESS:
                 self.debug("Publishing message to '%s' (mid=%d)", topic, message.mid)
@@ -225,5 +221,7 @@ class Client:
             return False
 
     def disconnect(self):
+        """ Closes connection and disconnects """
         self.client.loop_stop()
         self.client.disconnect()
+        self.client = None

@@ -22,19 +22,26 @@ import ipaddress
 import logging
 import pathlib
 import typing
+from abc import ABCMeta, abstractmethod
 from ipaddress import IPv4Address
 
 from euci import EUci
 
+from .client import CertificateSettings, PasswordSettings, Settings
+
 logger = logging.getLogger(__file__)
 
 
-class BaseBus:
+class BaseBus(metaclass=ABCMeta):
     def __init__(self, controller_id: str):
         self.controller_id = controller_id
 
     def __str__(self):
         return f"{self.__class__}: {self.controller_id}"
+
+    @abstractmethod
+    def client_settings(self) -> Settings:
+        pass
 
 
 class Host(BaseBus):
@@ -47,6 +54,9 @@ class Host(BaseBus):
         self.port = port
         self.username = username
         self.password = password
+
+    def client_settings(self) -> Settings:
+        return PasswordSettings(self.controller_id, self.port, self.username, self.password,)
 
 
 class Subordinate(BaseBus):
@@ -74,6 +84,11 @@ class Subordinate(BaseBus):
         for path in (self.ca_path, self.crt_path, self.key_path):
             if not path.is_file():
                 raise ValueError(f"File '{ path }' does not exist.")
+
+    def client_settings(self) -> Settings:
+        return CertificateSettings(
+            self.controller_id, str(self.ip), self.port, self.ca_path, self.crt_path, self.key_path,
+        )
 
 
 class Subsubordinate:
@@ -129,7 +144,7 @@ class Configuration:
                     logger.warning("Error loading subordinate '%s': %s", controller_id, exc)
                     continue
 
-                logger.debug("Loading &s", subordinate)
+                logger.debug("Loading %s", subordinate)
                 self._subordinates[controller_id] = subordinate
 
             subsubordinates_uci = [k for k in eu.get("fosquitto") if eu.get("fosquitto", k) == "subsubordinate"]
@@ -144,7 +159,7 @@ class Configuration:
                     )
                     continue
                 subsubordinate = Subsubordinate(controller_id, via, enabled)
-                logger.debug("Loading &s", subsubordinate)
+                logger.debug("Loading %s", subsubordinate)
                 self._subsubordinates[controller_id] = subsubordinate
 
     @property

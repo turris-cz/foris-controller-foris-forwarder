@@ -5,9 +5,11 @@ from foris_forwarder.client import Client
 TIMEOUT = 30.0
 
 
-def test_connection(prepare_ca, connection_settings):
-    process, settings = connection_settings
-    client = Client("connection-test", settings)
+def test_connection(
+    mosquitto_host, mosquitto_subordinate, prepare_ca, connection_settings, wait_for_disconnected,
+):
+    process, settings, _ = connection_settings
+    client = Client(settings)
 
     assert client.connected is False
 
@@ -48,16 +50,19 @@ def test_connection(prepare_ca, connection_settings):
 
     disconnect_event.clear()
     process.kill()
+    process.wait()
 
     assert disconnect_event.wait(TIMEOUT)
     assert client.connected is False
 
+    wait_for_disconnected(client)
 
-def test_messaging(prepare_ca, connection_settings):
-    process, settings = connection_settings
+
+def test_messaging(mosquitto_host, mosquitto_subordinate, prepare_ca, connection_settings, wait_for_disconnected):
+    process, settings1, settings2 = connection_settings
 
     # prepare listener
-    client_listener = Client("listener", settings)
+    client_listener = Client(settings1)
     subscribe_event = threading.Event()
 
     def subscribe(client, userdata, mid, granted_qos):
@@ -73,7 +78,7 @@ def test_messaging(prepare_ca, connection_settings):
     client_listener.set_message_hook(message)
 
     # prepare publisher
-    client_publisher = Client("publisher", settings)
+    client_publisher = Client(settings2)
     publish_event = threading.Event()
 
     def publish(client, userdata, mid):
@@ -92,8 +97,14 @@ def test_messaging(prepare_ca, connection_settings):
     assert subscribe_event.wait(TIMEOUT)
 
     # wait till publisher publishes a message
-    assert client_publisher.publish("/messaging-test/first", {"some": "data"}) is not None
+    assert client_publisher.publish("/messaging-test/first", '{"some": "data"}') is not None
     assert publish_event.wait(TIMEOUT)
 
     # check that the message was obtained by the listener
     assert message_event.wait(TIMEOUT)
+
+    wait_for_disconnected(client_publisher)
+    wait_for_disconnected(client_listener)
+
+    process.kill()
+    process.wait()

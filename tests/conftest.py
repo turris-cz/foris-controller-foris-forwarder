@@ -1,19 +1,25 @@
+import ipaddress
 import os
 import pathlib
 import shutil
 import subprocess
+import threading
 
 import pytest
 
-from foris_forwarder.client import CertificateSettings, PasswordSettings
+from foris_forwarder.client import CertificateSettings, Client, PasswordSettings
+from foris_forwarder.configuration import Host, Subordinate
+from foris_forwarder.forwarder import Forwarder
 
 BASE_DIR = pathlib.Path(__file__).parent
 MOSQUITTO_PATH = os.environ.get("MOSQUITTO_PATH", "/usr/sbin/mosquitto")
 MOSQUITTO_PASSWD_PATH = os.environ.get("MOSQUITTO_PASSWD_PATH", "/usr/bin/mosquitto_passwd")
 CA_PATH = pathlib.Path("/tmp/mosquitto-ca")
+TOKEN_PATH = pathlib.Path("/tmp/mosquitto-token")
+TIMEOUT = 30.0
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def prepare_ca():
     """ Prepares CA and its certificates """
     os.makedirs(CA_PATH, exist_ok=True)
@@ -26,7 +32,24 @@ def prepare_ca():
         pass
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
+def token_dir(prepare_ca):
+
+    target_dir = TOKEN_PATH / "000000050000006B"
+    os.makedirs(target_dir, exist_ok=True)
+    shutil.copy(prepare_ca / "remote" / "ca.crt", target_dir / "ca.crt")
+    shutil.copy(prepare_ca / "remote" / "02.crt", target_dir / "token.crt")
+    shutil.copy(prepare_ca / "remote" / "02.key", target_dir / "token.key")
+
+    yield TOKEN_PATH
+
+    try:
+        shutil.rmtree(TOKEN_PATH, ignore_errors=True)
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope="function")
 def mosquitto_host():
     """ Mocks mqtt host server (listens on localhost, password authentication) """
     PASSWORD = "password"
@@ -75,8 +98,10 @@ bind_address localhost
         except Exception:
             pass
 
+    instance.wait(TIMEOUT)
 
-@pytest.fixture
+
+@pytest.fixture(scope="function")
 def mosquitto_subordinate(prepare_ca):
     """ Mocks mqtt subordinate (listens on network uses certificates)"""
     PORT = 11884
@@ -132,17 +157,68 @@ require_certificate true
         except Exception:
             pass
 
+    instance.wait(TIMEOUT)
 
-@pytest.fixture(params=["host", "subordinate"])
-def connection_settings(request, mosquitto_host, mosquitto_subordinate):
+
+@pytest.fixture(scope="function")
+def host_settings(mosquitto_host):
+    process, username, password, port = mosquitto_host
+    return (
+        process,
+        PasswordSettings("000000050000005A", port, username, password),
+        PasswordSettings("000000050000006B", port, username, password),
+    )
+
+
+@pytest.fixture(scope="function")
+def subordinate_settings(mosquitto_subordinate):
+    process, port, token_key_path, token_crt_path, ca_path = mosquitto_subordinate
+    return (
+        process,
+        CertificateSettings("000000050000005A", "localhost", port, ca_path, token_crt_path, token_key_path),
+        CertificateSettings("000000050000006B", "localhost", port, ca_path, token_crt_path, token_key_path),
+    )
+
+
+@pytest.fixture(scope="function", params=["host", "subordinate"])
+def connection_settings(request, host_settings, subordinate_settings):
     if request.param == "host":
-        process, username, password, port = mosquitto_host
-        return process, PasswordSettings(port, username, password)
+        return host_settings
     elif request.param == "subordinate":
-        process, port, token_key_path, token_crt_path, ca_path = mosquitto_subordinate
-        return (
-            process,
-            CertificateSettings("localhost", port, ca_path, token_crt_path, token_key_path),
-        )
+        return subordinate_settings
 
     raise RuntimeError(f"{request.param} not handled in connection_settings")
+
+
+@pytest.fixture(scope="function")
+def forwarder(token_dir, mosquitto_host, mosquitto_subordinate):
+    _, username, password, host_port = mosquitto_host
+    host_conf = Host("000000050000005A", host_port, username, password)
+
+    _, subordinate_port, token_key_path, token_crt_path, ca_path = mosquitto_subordinate
+    subordinate_conf = Subordinate(
+        "000000050000006B", ipaddress.ip_address("127.0.0.1"), subordinate_port, True, token_dir,
+    )
+
+    forwarder = Forwarder(host_conf, subordinate_conf)
+
+    yield forwarder
+
+    forwarder.disconnect()
+
+
+@pytest.fixture
+def wait_for_disconnected():
+    def func(client: Client):
+        event = threading.Event()
+
+        def disconnect(client, userdata, rc):
+            event.set()
+
+        client.set_disconnect_hook(disconnect)
+        client.disconnect()
+
+        if client.connected:
+            assert event.wait(TIMEOUT)
+
+    return func
