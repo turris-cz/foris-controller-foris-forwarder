@@ -6,6 +6,7 @@ import subprocess
 import threading
 
 import pytest
+import zeroconf
 
 from foris_forwarder.client import CertificateSettings, Client, PasswordSettings
 from foris_forwarder.configuration import Host, Subordinate
@@ -222,3 +223,20 @@ def wait_for_disconnected():
             assert event.wait(TIMEOUT)
 
     return func
+
+
+@pytest.fixture(scope="function")
+def zconf_announcer():
+    info = zeroconf.ServiceInfo(
+        "_mqtt._tcp.local.",
+        "000000050000006B.foris-controller._mqtt._tcp.local.",
+        parsed_addresses=["127.0.0.1"],
+        port=11884,
+    )
+
+    zconf = zeroconf.Zeroconf()
+    zconf.register_service(info)
+
+    yield zconf
+
+    zconf.close()
