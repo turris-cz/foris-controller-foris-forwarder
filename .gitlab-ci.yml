@@ -11,7 +11,7 @@ pytest:
   script:
     - source /tmp/test/bin/activate
     - pip install .
-    - python setup.py test --addopts="--junitxml=report.xml --cov-report xml:coverage.xml --cov-report term --cov=foris_forwarder tests"
+    - python setup.py test --addopts="--junitxml=report.xml --cov-report xml:coverage.xml --cov-report term --cov=foris_forwarder tests  --log-cli-level CRITICAL"
   artifacts:
     reports:
       junit: report.xml

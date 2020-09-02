@@ -10,10 +10,10 @@ def test_uci():
     conf = configuration.Configuration(
         "0000000000000001",
         11883,
-        UCI_DIR,
-        FOSQUITO_DIR,
         "username",
         "password",
+        UCI_DIR,
+        FOSQUITO_DIR,
     )
 
     assert conf.host.controller_id == "0000000000000001"

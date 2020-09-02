@@ -134,6 +134,9 @@ class Client(LoggingMixin):
         self.client.enable_logger(self.logger)
 
         if self.settings.ca_certs and self.settings.certfile and self.settings.keyfile:
+            self.debug("ca_certs: '%s'", self.settings.ca_certs)
+            self.debug("certfile: '%s'", self.settings.certfile)
+            self.debug("keyfile: '%s'", self.settings.keyfile)
             self.client.tls_set(*map(str, (self.settings.ca_certs, self.settings.certfile, self.settings.keyfile)))
             self.client.tls_insecure_set(True)  # certificate is pinned the host name is not matching
         if self.settings.username and self.settings.password:

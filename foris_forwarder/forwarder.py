@@ -20,6 +20,8 @@
 import logging
 import threading
 
+from paho.mqtt.client import MQTTMessage
+
 from .client import Client
 from .configuration import Host as HostConf
 from .configuration import Subordinate as SubordinateConf
@@ -31,26 +33,39 @@ class Forwarder(LoggingMixin):
 
     logger = logging.getLogger(__file__)
 
-    def _connect_host(self):
-        """ Connects to host and blocks till connected """
+    def wait_for_connected(self):
+        """ Registers handlers and block until connected to both host and subordinate """
+        self.register_message_handlers()
+        self.wait_for_host_connected()
+        self.wait_for_host_subscribed()
+        self.wait_for_subordinate_connected()
+        self.wait_for_subordinate_subscribed()
+
+    def wait_for_host_connected(self):
+        """ Starts to connect and wait till connected to host """
+
         self.debug("Establishing connection to host")
 
         event = threading.Event()
+        prev_hook = self.host.connect_hook
 
-        def connect(client, userdata, mid, granted_qos):
+        def connect(client, userdata, flags, rc):
             event.set()
 
         self.host.set_connect_hook(connect)
 
         self.host.connect()
         event.wait()
-        self.host.set_connect_hook(None)  # Unset hook
+        self.host.set_connect_hook(prev_hook)  # Restore previous hook
 
         self.debug("Connection to host established")
 
-    def _subscribe_host(self):
-        event = threading.Event()
+    def wait_for_host_subscribed(self):
+        """ Wait till subscribed to all required host topics """
         self.debug("Subscribing to host topics")
+
+        event = threading.Event()
+        prev_hook = self.host.subscribe_hook
 
         def subscribe(client, userdata, mid, granted_qos):
             event.set()
@@ -66,29 +81,34 @@ class Forwarder(LoggingMixin):
             ]
         )
         event.wait()
-        self.host.set_subscribe_hook(None)  # Unset hook
+        self.host.set_subscribe_hook(prev_hook)  # Restore previous hook
+
         self.debug("Subscribed to host topics")
 
-    def _connect_subordinate(self):
-        """ Connects to subordinate and blocks till connected """
+    def wait_for_subordinate_connected(self):
+        """ Starts to connect and wait till connected to subordinate """
 
         self.debug("Establishing connection to subordinate")
         event = threading.Event()
+        prev_hook = self.subordinate.connect_hook
 
-        def connect(client, userdata, mid, granted_qos):
+        def connect(client, userdata, flags, rc):
             event.set()
 
         self.subordinate.set_connect_hook(connect)
 
         self.subordinate.connect()
         event.wait()
-        self.subordinate.set_connect_hook(None)  # Unset hook
+        self.subordinate.set_connect_hook(prev_hook)  # Restore previous hook
 
         self.debug("Connection to subordinate established")
 
-    def _subscribe_subordinate(self):
+    def wait_for_subordinate_subscribed(self):
+        """ Wait till subscribed to all required subordinate topics """
+
         self.debug("Subscribing to subordinates topics")
         event = threading.Event()
+        prev_hook = self.subordinate.subscribe_hook
 
         def subscribe(client, userdata, mid, granted_qos):
             event.set()
@@ -102,50 +122,121 @@ class Forwarder(LoggingMixin):
             ]
         )
         event.wait()
-        self.host.set_subscribe_hook(None)  # Unset hook
+        self.host.set_subscribe_hook(prev_hook)  # Restore previous hook
 
         self.debug("Subscribed to subordinates topics")
 
     def __init__(self, host: HostConf, subordinate: SubordinateConf):
-        """ Initializes forwarder and waits till connected """
+        """ Initializes forwarder """
+
+        self.subordinate_to_host_lock = threading.Lock()
+        self.host_to_subordinate_lock = threading.Lock()
 
         self.host = Client(host.client_settings(), f"{host.controller_id}->{subordinate.controller_id}")
         self.subordinate = Client(subordinate.client_settings(), f"{subordinate.controller_id}->{host.controller_id}")
 
-        self.debug("Starting")
+        self.debug("Initialized")
 
-        def host_to_subordinate(client, userdata, message):
-            self.subordinate.publish(message.topic, message.payload)
+    def register_message_handlers(self):
+        """ Register message handlers for forwarding """
+
+        # setting message hooks
+        def host_to_subordinate(client, userdata, message: MQTTMessage):
+            self.debug("Msg from host to subordinate (len=%d)", len(message.payload))
+            # TODO handle disconnects
+            with self.host_to_subordinate_lock:
+                self.subordinate.publish(message.topic, message.payload)
 
         self.host.set_message_hook(host_to_subordinate)
 
-        def subordinate_to_host(client, userdata, message):
-            self.host.publish(message.topic, message.payload)
+        def subordinate_to_host(client, userdata, message: MQTTMessage):
+            self.debug("Msg from subordinate to host (len=%d)", len(message.payload))
+            # TODO handle disconnects
+            with self.subordinate_to_host_lock:
+                self.host.publish(message.topic, message.payload)
 
         self.subordinate.set_message_hook(subordinate_to_host)
 
-        self._connect_host()
-        self._subscribe_host()
+    def start(self):
+        """ Seth the hooks and starts to connect to both subordinate and host """
+        self.debug("Setting hooks")
 
-        self._connect_subordinate()
-        self._subscribe_subordinate()
+        self.register_message_handlers()
 
-        self.debug("Ready")
+        # setting connect hooks
+        def host_connect(client, userdata, flags, rc):
+            if rc == 0:
+                self.debug("Host connected -> subscribing for topics")
+                self.host.subscribe(
+                    [
+                        (f"foris-controller/{self.subordinate.controller_id}/request/+/action/+", 0),
+                        (f"foris-controller/{self.subordinate.controller_id}/request/+/list", 0),
+                        (f"foris-controller/{self.subordinate.controller_id}/list", 0),
+                        (f"foris-controller/{self.subordinate.controller_id}/schema", 0),
+                    ]
+                )
+
+        self.host.set_connect_hook(host_connect)
+
+        def subordinate_connect(client, userdata, flags, rc):
+            if rc == 0:
+                self.debug("Subordinate connected -> subscribing for topics")
+                self.subordinate.subscribe(
+                    [
+                        (f"foris-controller/{self.subordinate.controller_id}/notification/+/action/+", 0),
+                        (f"foris-controller/{self.subordinate.controller_id}/reply/+", 0),
+                    ]
+                )
+
+        self.subordinate.set_connect_hook(subordinate_connect)
+
+        # setting subscribe hooks
+        def host_subscribe(client, userdata, mid, granted_qos):
+            self.debug("Subscribed to host topics.")
+
+        self.host.set_subscribe_hook(host_subscribe)
+
+        def subordinate_subscribe(client, userdata, mid, granted_qos):
+            self.debug("Subscribed to subordinate topics.")
+
+        self.subordinate.set_subscribe_hook(subordinate_subscribe)
+
+        # starting to connect
+        self.debug("Connecting")
+        self.host.connect()
+        self.subordinate.connect()
 
     def __str__(self):
         return f"{self.host}-{self.subordinate}"
 
-    def disconnect(self):
-        """ Disconnects and blocks until disconneted """
-
+    def stop(self):
+        """ Send request to disconnect """
         self.debug("Disconnecting")
 
-        subordinate_event = None
-        host_event = None
+        # setting logging hooks
+        def disconnect_subordinate(client, userdata, rc):
+            self.debug("Subordinate disconnected")
+
+        def disconnect_host(client, userdata, rc):
+            self.debug("Host disconnected")
+
+        self.host.set_disconnect_hook(disconnect_host)
+        self.subordinate.set_disconnect_hook(disconnect_subordinate)
+
+        # Calling disconnect to eventually disconnect
+        self.host.disconnect()
+        self.subordinate.disconnect()
+
+    def wait_for_disconnected(self):
+        """ Disconnects and blocks until disconneted """
+
+        self.debug("Waiting for disconnected")
+
         if self.subordinate.connected:
             subordinate_event = threading.Event()
 
             def disconnect_subordinate(client, userdata, rc):
+                self.debug("Subordinate disconnected")
                 subordinate_event.set()
 
             self.subordinate.set_disconnect_hook(disconnect_subordinate)
@@ -157,6 +248,7 @@ class Forwarder(LoggingMixin):
             host_event = threading.Event()
 
             def disconnect_host(client, userdata, rc):
+                self.debug("Host disconnected")
                 host_event.set()
 
             self.host.set_disconnect_hook(disconnect_host)

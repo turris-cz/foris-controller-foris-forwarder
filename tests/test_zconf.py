@@ -1,6 +1,5 @@
 import ipaddress
 import queue
-import threading
 import typing
 
 from foris_forwarder.zconf import Listener

@@ -139,7 +139,7 @@ use_identity_as_username true
 cafile {CA_PATH}
 certfile {CRT_PATH}
 keyfile {KEY_PATH}
-crlfile {CRL_PATH}
+#crlfile {CRL_PATH}  # TODO crlfile have only 30 days before expiring
 require_certificate true
 """
         )
@@ -206,10 +206,11 @@ def forwarder(token_dir, mosquitto_host, mosquitto_subordinate):
     )
 
     forwarder = Forwarder(host_conf, subordinate_conf)
+    forwarder.wait_for_connected()
 
     yield forwarder
 
-    forwarder.disconnect()
+    forwarder.wait_for_disconnected()
 
 
 @pytest.fixture

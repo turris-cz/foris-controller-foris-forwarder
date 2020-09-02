@@ -40,9 +40,9 @@ def test_notification(host_settings, subordinate_settings, forwarder, wait_for_d
     message_event = threading.Event()
 
     def message(client, userdata, message):
-        message_event.set()
         stored_message["payload"] = message.payload
         stored_message["topic"] = message.topic
+        message_event.set()
 
     host_client.set_message_hook(message)
 
@@ -50,14 +50,14 @@ def test_notification(host_settings, subordinate_settings, forwarder, wait_for_d
     wait_for_connected(subordinate_client)
 
     host_client.subscribe([(f"foris-controller/{forwarder.subordinate.controller_id}/notification/+/action/+", 0)])
-    subscribe_event.wait(TIMEOUT)
+    assert subscribe_event.wait(TIMEOUT)
 
     subordinate_client.publish(
         f"foris-controller/{forwarder.subordinate.controller_id}/notification/mod/action/act",
         b'{"some": "notification"}',
     )
 
-    message_event.wait(TIMEOUT)
+    assert message_event.wait(TIMEOUT)
 
     assert (
         stored_message["topic"] == f"foris-controller/{forwarder.subordinate.controller_id}/notification/mod/action/act"
@@ -89,9 +89,9 @@ def test_request(host_settings, subordinate_settings, forwarder, wait_for_discon
     message_event = threading.Event()
 
     def message(client, userdata, message):
-        message_event.set()
         stored_message["payload"] = message.payload
         stored_message["topic"] = message.topic
+        message_event.set()
 
     subordinate_client.set_message_hook(message)
 
@@ -99,14 +99,14 @@ def test_request(host_settings, subordinate_settings, forwarder, wait_for_discon
     wait_for_connected(subordinate_client)
 
     subordinate_client.subscribe([(f"foris-controller/{forwarder.subordinate.controller_id}/request/+/action/+", 0)])
-    subscribe_event.wait(TIMEOUT)
+    assert subscribe_event.wait(TIMEOUT)
 
     host_client.publish(
         f"foris-controller/{forwarder.subordinate.controller_id}/request/mod/action/act",
         b'{"some": "request"}',
     )
 
-    message_event.wait(TIMEOUT)
+    assert message_event.wait(TIMEOUT)
 
     assert stored_message["topic"] == f"foris-controller/{forwarder.subordinate.controller_id}/request/mod/action/act"
     assert stored_message["payload"] == b'{"some": "request"}'
@@ -136,9 +136,9 @@ def test_reply(host_settings, subordinate_settings, forwarder, wait_for_disconne
     message_event = threading.Event()
 
     def message(client, userdata, message):
-        message_event.set()
         stored_message["payload"] = message.payload
         stored_message["topic"] = message.topic
+        message_event.set()
 
     host_client.set_message_hook(message)
 
@@ -146,7 +146,7 @@ def test_reply(host_settings, subordinate_settings, forwarder, wait_for_disconne
     wait_for_connected(subordinate_client)
 
     host_client.subscribe([(f"foris-controller/{forwarder.subordinate.controller_id}/reply/+", 0)])
-    subscribe_event.wait(TIMEOUT)
+    assert subscribe_event.wait(TIMEOUT)
 
     reply_uuid = uuid.uuid4()
 
@@ -155,7 +155,7 @@ def test_reply(host_settings, subordinate_settings, forwarder, wait_for_disconne
         b'{"some": "reply"}',
     )
 
-    message_event.wait(TIMEOUT)
+    assert message_event.wait(TIMEOUT)
 
     assert stored_message["topic"] == f"foris-controller/{forwarder.subordinate.controller_id}/reply/{reply_uuid}"
     assert stored_message["payload"] == b'{"some": "reply"}'

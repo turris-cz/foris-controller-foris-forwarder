@@ -28,16 +28,17 @@ from ipaddress import IPv4Address
 from euci import EUci
 
 from .client import CertificateSettings, PasswordSettings, Settings
+from .logger import LoggingMixin
 
-logger = logging.getLogger(__file__)
 
+class BaseBus(LoggingMixin, metaclass=ABCMeta):
+    logger = logging.getLogger(__file__)
 
-class BaseBus(metaclass=ABCMeta):
     def __init__(self, controller_id: str):
         self.controller_id = controller_id
 
     def __str__(self):
-        return f"{self.__class__}: {self.controller_id}"
+        return f"{self.__class__.__name__}: {self.controller_id}"
 
     @abstractmethod
     def client_settings(self) -> Settings:
@@ -118,15 +119,17 @@ class Subsubordinate:
         return f"{super.__str__(self)} (via {self.via})"
 
 
-class Configuration:
+class Configuration(LoggingMixin):
+    logger = logging.getLogger(__file__)
+
     def __init__(
         self,
         controller_id: str,
         port: int,
-        config_dir: pathlib.Path,
-        fosquitto_data_dir: pathlib.Path,
         username: str,
         password: str,
+        config_dir: pathlib.Path,
+        fosquitto_data_dir: pathlib.Path,
     ):
         self.config_dir = config_dir
         self.fosquitto_data_dir = fosquitto_data_dir
@@ -134,7 +137,7 @@ class Configuration:
         self._subordinates: typing.Dict[str, Subordinate] = {}
         self._subsubordinates: typing.Dict[str, Subsubordinate] = {}
 
-        logger.debug("Loading %s", Host)
+        self.debug("Loading Host")
         self._host = Host(controller_id, port, username, password)
 
         self.load_from_uci()
@@ -156,10 +159,10 @@ class Configuration:
                 try:
                     subordinate = Subordinate(controller_id, ip, port, enabled, self.fosquitto_data_dir)
                 except ValueError as exc:
-                    logger.warning("Error loading subordinate '%s': %s", controller_id, exc)
+                    self.warning("Error loading subordinate '%s': %s", controller_id, exc)
                     continue
 
-                logger.debug("Loading %s", subordinate)
+                self.debug("Loading %s", subordinate)
                 self._subordinates[controller_id] = subordinate
 
             subsubordinates_uci = [k for k in eu.get("fosquitto") if eu.get("fosquitto", k) == "subsubordinate"]
@@ -169,14 +172,14 @@ class Configuration:
                 via = eu.get("fosquitto", controller_id, "via")
 
                 if via not in self._subordinates:
-                    logger.warning(
+                    self.warning(
                         "Error loading subsubordinate '%s': via '%s' is not in subordinates",
                         controller_id,
                         via,
                     )
                     continue
                 subsubordinate = Subsubordinate(controller_id, via, enabled)
-                logger.debug("Loading %s", subsubordinate)
+                self.debug("Loading %s", subsubordinate)
                 self._subsubordinates[controller_id] = subsubordinate
 
     @property
@@ -193,3 +196,6 @@ class Configuration:
     def subsubordinates(self):
         """ List current subsubordinates """
         return copy.deepcopy(self._subsubordinates)
+
+    def __str__(self):
+        return self.__class__.__name__

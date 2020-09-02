@@ -25,6 +25,8 @@ import typing
 
 import pkg_resources
 
+from foris_forwarder.app import App
+
 logger = logging.getLogger(__file__)
 
 
@@ -46,6 +48,14 @@ def directory_path(path: str) -> pathlib.Path:
     return parsed
 
 
+def convert_to_controller_id(controller_id: str) -> str:
+    """ Checks whether controller id is in correct format and normalizes it (convert to upper) """
+    match = re.match(r"[0-9a-zA-Z]{16}", controller_id)
+    if not match:
+        raise ValueError(f"`{controller_id}` is not a valid controller id")
+    return match.group().upper()
+
+
 def init_logging(debug: bool):
     logging_format = "%(levelname)s:%(name)s:%(message)"
     if debug:
@@ -54,35 +64,34 @@ def init_logging(debug: bool):
         logging.basicConfig(format=logging_format)
 
 
-def main():
+def main() -> typing.NoReturn:
     dist = pkg_resources.get_distribution("foris-forwarder")
     version = dist.version if dist else "?"
 
-    parser = argparse.ArgumentParser(prog="foris-netboot-observer")
+    parser = argparse.ArgumentParser(prog="foris-forwarder")
     parser.add_argument("-d", "--debug", dest="debug", action="store_true", default=False)
     parser.add_argument("--version", action="version", version=version)
     parser.add_argument(
         "--controller-id",
-        type=lambda x: re.match(r"[0-9a-zA-Z]{16}", x).group().upper(),
+        type=convert_to_controller_id,
         help="local controller id",
     )
-    parser.add_argument("--host", dest="host", default="localhost")
     parser.add_argument("--port", dest="port", type=int, default=1883)
     parser.add_argument(
         "--passwd-file",
-        type=lambda x: read_passwd_file(x),
+        type=read_passwd_file,
         help="path to passwd file (first record will be used to authenticate)",
         default=None,
     )
     parser.add_argument(
         "--uci-config-dir",
-        type=lambda x: directory_path(x),
+        type=directory_path,
         help="path to oci configs",
         default=pathlib.Path("/etc/config"),
     )
     parser.add_argument(
         "--fosquitto-dir",
-        type=lambda x: directory_path(x),
+        type=directory_path,
         help="path to fosquitto subordinates dir",
         default=pathlib.Path("/etc/fosquitto/bridges"),
     )
@@ -90,4 +99,19 @@ def main():
     options = parser.parse_args()
     init_logging(options.debug)
 
-    logger.debug("Version %s" % version)
+    logger.info("Starting Foris Forwarder (%s)" % version)
+
+    app = App(
+        options.controller_id,
+        options.port,
+        options.passwd_file[0],
+        options.passwd_file[1],
+        options.uci_config_dir,
+        options.fosquitto_dir,
+    )
+
+    app.run()
+
+
+if __file__ == "__main__":
+    main()

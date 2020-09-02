@@ -100,3 +100,6 @@ class Listener(LoggingMixin):
 
     def __del__(self):
         self.zeroconf.close()
+
+    def __str__(self):
+        return self.__class__.__name__
