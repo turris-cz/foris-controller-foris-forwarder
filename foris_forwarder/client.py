@@ -66,11 +66,11 @@ class PasswordSettings(Settings):
 
 
 class Client(LoggingMixin):
-    """ Class which handle connection to one message bus (basically a wrapper arount MQTTClient)
+    """Class which handle connection to one message bus (basically a wrapper arount MQTTClient)
 
-        It listens to one mqtt bus and triggers a handler with incomming data
-        It also uses a set of filter to filter messages which are sent as well
-        as those which are received
+    It listens to one mqtt bus and triggers a handler with incomming data
+    It also uses a set of filter to filter messages which are sent as well
+    as those which are received
     """
 
     KEEPALIVE = 30
@@ -109,12 +109,14 @@ class Client(LoggingMixin):
         self.publish_hook = hook
 
     def set_subscribe_hook(
-        self, hook: typing.Optional[typing.Callable[[mqtt.Client, dict, int, typing.List[int]], None]],
+        self,
+        hook: typing.Optional[typing.Callable[[mqtt.Client, dict, int, typing.List[int]], None]],
     ):
         self.subscribe_hook = hook
 
     def set_message_hook(
-        self, hook: typing.Optional[typing.Callable[[mqtt.Client, dict, mqtt.MQTTMessage], None]],
+        self,
+        hook: typing.Optional[typing.Callable[[mqtt.Client, dict, mqtt.MQTTMessage], None]],
     ):
         self.message_hook = hook
 
@@ -139,7 +141,9 @@ class Client(LoggingMixin):
 
         def on_connect(client, userdata, flags, rc):
             self.debug(
-                "Forwarded trying to connect to %s:%d", self.settings.host, self.settings.port,
+                "Forwarded trying to connect to %s:%d",
+                self.settings.host,
+                self.settings.port,
             )
             if rc == 0:
                 self.debug("Connected to %s:%d", self.settings.host, self.settings.port)
@@ -184,7 +188,7 @@ class Client(LoggingMixin):
         self.client.loop_start()
 
     def publish(self, topic: str, data: str) -> typing.Optional[int]:
-        """ Publishes messages
+        """Publishes messages
 
         This doesn't mean that the message was acutally sent.
         on_publish hook should be checked to determined whether the message was sent
@@ -203,7 +207,7 @@ class Client(LoggingMixin):
             return None
 
     def subscribe(self, topics: typing.List[typing.Tuple[str, int]]) -> bool:
-        """ Subscibes to a topic
+        """Subscibes to a topic
 
         This doesn't mean the client is subscribed for given topic.
         on_subscribe hook should be checked to determined whether the topic was subscribed

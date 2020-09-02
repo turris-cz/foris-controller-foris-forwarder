@@ -36,9 +36,22 @@ setup(
     license="GPLv3",
     description=DESCRIPTION,
     long_description=open("README.rst").read(),
-    install_requires=["paho-mqtt", "zeroconf", "pyuci @ git+https://gitlab.labs.nic.cz/turris/pyuci.git",],
+    install_requires=[
+        "paho-mqtt",
+        "zeroconf",
+        "pyuci @ git+https://gitlab.labs.nic.cz/turris/pyuci.git",
+    ],
     setup_requires=["pytest-runner"],
-    extras_require={"dev": ["pre-commit", "flake8", "black", "isort",]},
-    tests_require=["pytest",],
+    extras_require={
+        "dev": [
+            "pre-commit",
+            "flake8",
+            "black",
+            "isort",
+        ]
+    },
+    tests_require=[
+        "pytest",
+    ],
     entry_points={"console_scripts": ["foris-forwarder = foris_forwarder.__main__:main"]},
 )

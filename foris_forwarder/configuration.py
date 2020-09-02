@@ -56,14 +56,24 @@ class Host(BaseBus):
         self.password = password
 
     def client_settings(self) -> Settings:
-        return PasswordSettings(self.controller_id, self.port, self.username, self.password,)
+        return PasswordSettings(
+            self.controller_id,
+            self.port,
+            self.username,
+            self.password,
+        )
 
 
 class Subordinate(BaseBus):
     """ 1st level buses """
 
     def __init__(
-        self, controller_id: str, ip: ipaddress.IPv4Address, port: int, enabled: bool, fosquitto_data_dir: pathlib.Path,
+        self,
+        controller_id: str,
+        ip: ipaddress.IPv4Address,
+        port: int,
+        enabled: bool,
+        fosquitto_data_dir: pathlib.Path,
     ):
         super().__init__(controller_id)
         self.ip = ip
@@ -87,7 +97,12 @@ class Subordinate(BaseBus):
 
     def client_settings(self) -> Settings:
         return CertificateSettings(
-            self.controller_id, str(self.ip), self.port, self.ca_path, self.crt_path, self.key_path,
+            self.controller_id,
+            str(self.ip),
+            self.port,
+            self.ca_path,
+            self.crt_path,
+            self.key_path,
         )
 
 
@@ -155,7 +170,9 @@ class Configuration:
 
                 if via not in self._subordinates:
                     logger.warning(
-                        "Error loading subsubordinate '%s': via '%s' is not in subordinates", controller_id, via,
+                        "Error loading subsubordinate '%s': via '%s' is not in subordinates",
+                        controller_id,
+                        via,
                     )
                     continue
                 subsubordinate = Subsubordinate(controller_id, via, enabled)

@@ -27,8 +27,7 @@ from .logger import LoggingMixin
 
 
 class Forwarder(LoggingMixin):
-    """ Class responsible for passing messages between host and a single subordinate
-    """
+    """Class responsible for passing messages between host and a single subordinate"""
 
     logger = logging.getLogger(__file__)
 

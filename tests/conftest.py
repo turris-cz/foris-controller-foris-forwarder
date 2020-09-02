@@ -198,7 +198,11 @@ def forwarder(token_dir, mosquitto_host, mosquitto_subordinate):
 
     _, subordinate_port, token_key_path, token_crt_path, ca_path = mosquitto_subordinate
     subordinate_conf = Subordinate(
-        "000000050000006B", ipaddress.ip_address("127.0.0.1"), subordinate_port, True, token_dir,
+        "000000050000006B",
+        ipaddress.ip_address("127.0.0.1"),
+        subordinate_port,
+        True,
+        token_dir,
     )
 
     forwarder = Forwarder(host_conf, subordinate_conf)

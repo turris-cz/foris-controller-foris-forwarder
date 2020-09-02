@@ -6,7 +6,11 @@ TIMEOUT = 30.0
 
 
 def test_connection(
-    mosquitto_host, mosquitto_subordinate, prepare_ca, connection_settings, wait_for_disconnected,
+    mosquitto_host,
+    mosquitto_subordinate,
+    prepare_ca,
+    connection_settings,
+    wait_for_disconnected,
 ):
     process, settings, _ = connection_settings
     client = Client(settings)

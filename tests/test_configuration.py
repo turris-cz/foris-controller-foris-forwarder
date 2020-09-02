@@ -7,7 +7,14 @@ FOSQUITO_DIR = pathlib.Path(__file__).parent / "fosquitto"
 
 
 def test_uci():
-    conf = configuration.Configuration("0000000000000001", 11883, UCI_DIR, FOSQUITO_DIR, "username", "password",)
+    conf = configuration.Configuration(
+        "0000000000000001",
+        11883,
+        UCI_DIR,
+        FOSQUITO_DIR,
+        "username",
+        "password",
+    )
 
     assert conf.host.controller_id == "0000000000000001"
     assert conf.host.username == "username"

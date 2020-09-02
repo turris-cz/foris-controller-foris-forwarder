@@ -29,8 +29,7 @@ logger = logging.getLogger(__file__)
 
 
 def read_passwd_file(path: str) -> typing.Sequence[str]:
-    """ Returns username and password from passwd file
-    """
+    """Returns username and password from passwd file"""
     with pathlib.Path(path).open("r") as f:
         match = re.match(r"^([^:]+):(.*)$", f.readlines()[0][:-1])
         if not match:
@@ -63,7 +62,9 @@ def main():
     parser.add_argument("-d", "--debug", dest="debug", action="store_true", default=False)
     parser.add_argument("--version", action="version", version=version)
     parser.add_argument(
-        "--controller-id", type=lambda x: re.match(r"[0-9a-zA-Z]{16}", x).group().upper(), help="local controller id",
+        "--controller-id",
+        type=lambda x: re.match(r"[0-9a-zA-Z]{16}", x).group().upper(),
+        help="local controller id",
     )
     parser.add_argument("--host", dest="host", default="localhost")
     parser.add_argument("--port", dest="port", type=int, default=1883)

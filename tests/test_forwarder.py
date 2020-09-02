@@ -102,7 +102,8 @@ def test_request(host_settings, subordinate_settings, forwarder, wait_for_discon
     subscribe_event.wait(TIMEOUT)
 
     host_client.publish(
-        f"foris-controller/{forwarder.subordinate.controller_id}/request/mod/action/act", b'{"some": "request"}',
+        f"foris-controller/{forwarder.subordinate.controller_id}/request/mod/action/act",
+        b'{"some": "request"}',
     )
 
     message_event.wait(TIMEOUT)
@@ -150,7 +151,8 @@ def test_reply(host_settings, subordinate_settings, forwarder, wait_for_disconne
     reply_uuid = uuid.uuid4()
 
     subordinate_client.publish(
-        f"foris-controller/{forwarder.subordinate.controller_id}/reply/{reply_uuid}", b'{"some": "reply"}',
+        f"foris-controller/{forwarder.subordinate.controller_id}/reply/{reply_uuid}",
+        b'{"some": "reply"}',
     )
 
     message_event.wait(TIMEOUT)

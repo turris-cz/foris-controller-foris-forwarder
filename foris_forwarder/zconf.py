@@ -70,7 +70,7 @@ class Listener(LoggingMixin):
     def set_add_service_handler(
         self, handler: typing.Optional[typing.Callable[[str, typing.List[ipaddress.IPv4Address]], None]]
     ):
-        """ Sets add service handler
+        """Sets add service handler
         :param handler: None or callable which takes controller_id(str) as argument
         """
         self.debug("Setting add handler to %s", handler)
@@ -78,7 +78,7 @@ class Listener(LoggingMixin):
         self._add_service_handler = handler
 
     def set_remove_service_handler(self, handler: typing.Optional[typing.Callable[[str], None]]):
-        """ Sets remove service handler
+        """Sets remove service handler
         :param handler: None or callable which takes controller_id(str) as argument
         """
         self.debug("Setting remove handler to %s", handler)
