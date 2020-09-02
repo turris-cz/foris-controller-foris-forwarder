@@ -52,6 +52,7 @@ setup(
     },
     tests_require=[
         "pytest",
+        "pytest-cov",
     ],
     entry_points={"console_scripts": ["foris-forwarder = foris_forwarder.__main__:main"]},
 )

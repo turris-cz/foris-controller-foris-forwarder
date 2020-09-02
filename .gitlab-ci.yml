@@ -34,7 +34,12 @@ pytest:
   script:
     - source /tmp/test/bin/activate
     - pip install .
-    - python setup.py test
+    - python setup.py test --addopts="--junitxml=report.xml --cov-report xml:coverage.xml --cov-report term --cov=foris_forwarder tests"
+  artifacts:
+    reports:
+      junit: report.xml
+      cobertura: coverage.xml
+  coverage: /^TOTAL.*\s+([^\s]+)%$/
 
 pre-commit:
   image: registry.labs.nic.cz/turris/foris-ci/python3
