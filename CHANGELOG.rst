@@ -1,4 +1,6 @@
-0.1.0 (????-??-??)
+0.1.0 (2020-09-23)
 ------------------
 
-* initial version
+* app connects to both mqtt buses
+* basic forwarding done
+* update disconnected clients via zconf
