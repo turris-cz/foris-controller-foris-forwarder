@@ -18,7 +18,9 @@
 #
 
 import logging
+import queue
 import threading
+import typing
 
 from paho.mqtt.client import MQTTMessage
 
@@ -126,14 +128,46 @@ class Forwarder(LoggingMixin):
 
         self.debug("Subscribed to subordinates topics")
 
+    def handle_subordinate_queue(self):
+        self.debug("Subordinate queue feeder started")
+        while True:
+            message: typing.Optional[MQTTMessage] = self.subordinate_queue.get()
+            if message is None:
+                # terminating on empty message
+                return
+            self.subordinate.publish(message.topic, message.payload)
+            self.subordinate_queue.task_done()
+
+    def handle_host_queue(self):
+        self.debug("Host queue feeder started")
+        while True:
+            message: typing.Optional[MQTTMessage] = self.host_queue.get()
+            if message is None:
+                # terminating on empty message
+                return
+            self.host.publish(message.topic, message.payload)
+            self.host_queue.task_done()
+
     def __init__(self, host: HostConf, subordinate: SubordinateConf):
         """ Initializes forwarder """
 
-        self.subordinate_to_host_lock = threading.Lock()
-        self.host_to_subordinate_lock = threading.Lock()
-
         self.host = Client(host.client_settings(), f"{host.controller_id}->{subordinate.controller_id}")
         self.subordinate = Client(subordinate.client_settings(), f"{subordinate.controller_id}->{host.controller_id}")
+
+        # initialize forwarder threads and queues
+        self.host_queue: queue.LifoQueue = queue.LifoQueue()
+        self.host_queue_worker = threading.Thread(
+            target=self.handle_host_queue,
+            daemon=True,
+        )
+        self.host_queue_worker.start()
+
+        self.subordinate_queue: queue.LifoQueue = queue.LifoQueue()
+        self.subordinate_queue_worker = threading.Thread(
+            target=self.handle_subordinate_queue,
+            daemon=True,
+        )
+        self.subordinate_queue_worker.start()
 
         self.debug("Initialized")
 
@@ -143,17 +177,13 @@ class Forwarder(LoggingMixin):
         # setting message hooks
         def host_to_subordinate(client, userdata, message: MQTTMessage):
             self.debug("Msg from host to subordinate (len=%d)", len(message.payload))
-            # TODO handle disconnects
-            with self.host_to_subordinate_lock:
-                self.subordinate.publish(message.topic, message.payload)
+            self.subordinate_queue.put(message)
 
         self.host.set_message_hook(host_to_subordinate)
 
         def subordinate_to_host(client, userdata, message: MQTTMessage):
             self.debug("Msg from subordinate to host (len=%d)", len(message.payload))
-            # TODO handle disconnects
-            with self.subordinate_to_host_lock:
-                self.host.publish(message.topic, message.payload)
+            self.host_queue.put(message)
 
         self.subordinate.set_message_hook(subordinate_to_host)
 
@@ -227,6 +257,10 @@ class Forwarder(LoggingMixin):
         self.host.disconnect()
         self.subordinate.disconnect()
 
+        # Terminate queue workers
+        self.host_queue.put(None)
+        self.subordinate_queue.put(None)
+
     def wait_for_disconnected(self):
         """ Disconnects and blocks until disconneted """
 
@@ -255,5 +289,11 @@ class Forwarder(LoggingMixin):
             self.host.disconnect()
 
             host_event.wait()
+
+        # Terminate queue workers
+        self.host_queue.put(None)
+        self.host_queue_worker.join()
+        self.subordinate_queue.put(None)
+        self.subordinate_queue_worker.join()
 
         self.debug("Disconnected")
