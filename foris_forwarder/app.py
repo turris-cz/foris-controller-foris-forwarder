@@ -20,6 +20,7 @@
 import ipaddress
 import logging
 import pathlib
+import threading
 import time
 import typing
 from abc import ABCMeta
@@ -73,7 +74,18 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
         :param fosquitto_dir: path to directory with mosquitto certificates
         """
         self.configuration = Configuration(controller_id, port, username, password, uci_config_dir, fosquitto_dir)
+        self._supervisors_lock = threading.Lock()
         self._supervisors: typing.Dict[str, ForwarderSupervisor] = {}
+
+    def print_forwarders(self):
+        """ Prints forwarders with its connection state to stdout """
+
+        with self._supervisors_lock:
+            for controller_id, supervisor in self._supervisors.items():
+                print(
+                    supervisor.forwarder,
+                    f"{supervisor.forwarder.host.connected}-{supervisor.forwarder.subordinate.connected}",
+                )
 
     def run(self) -> typing.NoReturn:
 
@@ -98,8 +110,9 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
             # TODO check for update configurations
 
             # Update supervisors state
-            for supervisors in self._supervisors.values():
-                supervisors.check()
+            with self._supervisors_lock:
+                for supervisors in self._supervisors.values():
+                    supervisors.check()
 
             # sleep for required interval
             sleep_for = start_at + App.WAIT_LOOP_PERIOD - time.monotonic()

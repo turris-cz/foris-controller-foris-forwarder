@@ -21,6 +21,7 @@ import argparse
 import logging
 import pathlib
 import re
+import signal
 import typing
 
 import pkg_resources
@@ -109,6 +110,12 @@ def main() -> typing.NoReturn:
         options.uci_config_dir,
         options.fosquitto_dir,
     )
+
+    # attach signal handlers
+    def handler_list_forwarders(signum, frame):
+        app.print_forwarders()
+
+    signal.signal(signal.SIGUSR1, handler_list_forwarders)
 
     app.run()
 
