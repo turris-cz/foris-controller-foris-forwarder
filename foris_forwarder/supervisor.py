@@ -63,7 +63,6 @@ class ForwarderSupervisor(LoggingMixin):
         self.debug("Supervisor terminating")
 
         self.forwarder.stop()
-        self.state = ForwarderSupervisor.State.Disconnected
 
     def zconf_update(self, ips: typing.List[ipaddress.IPv4Address]):
         """ update ips obtained using zconf """

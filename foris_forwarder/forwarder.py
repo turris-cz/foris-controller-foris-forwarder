@@ -17,17 +17,154 @@
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 #
 
+import abc
 import logging
 import queue
 import threading
+import time
 import typing
 
-from paho.mqtt.client import MQTTMessage
+from paho.mqtt.client import MQTT_ERR_SUCCESS, MQTTMessage
 
 from .client import Client
 from .configuration import Host as HostConf
 from .configuration import Subordinate as SubordinateConf
+from .configuration import Subsubordinate as SubsubordinateConf
 from .logger import LoggingMixin
+
+SLEEP_STEP = 0.2
+
+
+class QueueItem(metaclass=abc.ABCMeta):
+    priority = 0
+
+    def __init__(self):
+        self.attempt_number = 0
+        self.first_attempt = time.monotonic()
+        self.last_attempt = self.first_attempt
+
+    def retry(self):
+        self.attempt_number += 1
+        self.last_attempt = time.monotonic()
+
+    @abc.abstractmethod
+    def perform(self, client: Client, timeout: typing.Optional[float] = None) -> typing.Optional[bool]:
+        pass
+
+
+class Connect(QueueItem):
+    priority = 10
+
+    def perform(self, client: Client, timeout: typing.Optional[float] = None) -> typing.Optional[bool]:
+        event = threading.Event()
+
+        res = {}
+
+        def connect(client, userdata, flags, rc):
+            res["rc"] = rc
+            event.set()
+
+        prev_hook = client.connect_hook
+        client.set_connect_hook(connect)
+        client.connect()
+
+        finished = event.wait(timeout)
+        client.set_connect_hook(prev_hook)
+
+        return res["rc"] == MQTT_ERR_SUCCESS if finished else None
+
+
+class Disconnect(QueueItem):
+    priority = 10
+
+    def perform(self, client: Client, timeout: typing.Optional[float] = None) -> typing.Optional[bool]:
+        event = threading.Event()
+
+        res = {}
+
+        def disconnect(client, userdata, rc):
+            res["rc"] = rc
+            event.set()
+
+        prev_hook = client.disconnect_hook
+        client.set_disconnect_hook(disconnect)
+        client.disconnect()
+
+        finished = event.wait(timeout)
+        client.set_disconnect_hook(prev_hook)
+
+        return res["rc"] == MQTT_ERR_SUCCESS if finished else None
+
+
+class Publish(QueueItem):
+    priority = 1
+
+    def __init__(self, message: MQTTMessage):
+        super().__init__()
+        self.message = message
+
+    def perform(self, client: Client, timeout: typing.Optional[float] = None) -> typing.Optional[bool]:
+        event = threading.Event()
+
+        def publish(client, userdata, mid):
+            event.set()
+
+        prev_hook = client.publish_hook
+        client.set_publish_hook(publish)
+        client.publish(self.message.topic, self.message.payload)
+
+        finished = event.wait(timeout)
+        client.set_publish_hook(prev_hook)
+
+        return True if finished else None
+
+
+class Subscribe(QueueItem):
+    priority = 5
+
+    def __init__(self, topics_with_qos: typing.List[typing.Tuple[str, int]]):
+        super().__init__()
+        self.topics_with_qos = topics_with_qos
+
+    def perform(self, client: Client, timeout: typing.Optional[float] = None) -> typing.Optional[bool]:
+        event = threading.Event()
+
+        def subscribe(client, userdata, mid, granted_qos):
+            event.set()
+
+        prev_hook = client.subscribe_hook
+        client.set_subscribe_hook(subscribe)
+        if not client.subscribe(self.topics_with_qos):
+            return False
+
+        finished = event.wait(timeout)
+        client.set_subscribe_hook(prev_hook)
+
+        return True if finished else None
+
+
+class Unsubscribe(QueueItem):
+    priority = 5
+
+    def __init__(self, topics: typing.List[str]):
+        super().__init__()
+        self.topics = topics
+
+    def perform(self, client: Client, timeout: typing.Optional[float] = None) -> typing.Optional[bool]:
+        event = threading.Event()
+
+        def unsubscribe(client, userdata, mid):
+            event.set()
+
+        prev_hook = client.unsubscribe_hook
+        client.set_unsubscribe_hook(unsubscribe)
+        if not client.unsubscribe(self.topics):
+            return False
+
+        finished = event.wait(timeout)
+        client.set_unsubscribe_hook(prev_hook)
+
+        return True if finished else None
 
 
 class Forwarder(LoggingMixin):
@@ -35,141 +172,97 @@ class Forwarder(LoggingMixin):
 
     logger = logging.getLogger(__file__)
 
-    def wait_for_connected(self):
-        """ Registers handlers and block until connected to both host and subordinate """
-        self.register_message_handlers()
-        self.wait_for_host_connected()
-        self.wait_for_host_subscribed()
-        self.wait_for_subordinate_connected()
-        self.wait_for_subordinate_subscribed()
-
-    def wait_for_host_connected(self):
-        """ Starts to connect and wait till connected to host """
-
-        self.debug("Establishing connection to host")
-
-        event = threading.Event()
-        prev_hook = self.host.connect_hook
-
-        def connect(client, userdata, flags, rc):
-            event.set()
-
-        self.host.set_connect_hook(connect)
-
-        self.host.connect()
-        event.wait()
-        self.host.set_connect_hook(prev_hook)  # Restore previous hook
-
-        self.debug("Connection to host established")
-
-    def wait_for_host_subscribed(self):
-        """ Wait till subscribed to all required host topics """
-        self.debug("Subscribing to host topics")
-
-        event = threading.Event()
-        prev_hook = self.host.subscribe_hook
-
-        def subscribe(client, userdata, mid, granted_qos):
-            event.set()
-
-        self.host.set_subscribe_hook(subscribe)
-
-        self.host.subscribe(
-            [
-                (f"foris-controller/{self.subordinate.controller_id}/request/+/action/+", 0),
-                (f"foris-controller/{self.subordinate.controller_id}/request/+/list", 0),
-                (f"foris-controller/{self.subordinate.controller_id}/list", 0),
-                (f"foris-controller/{self.subordinate.controller_id}/schema", 0),
-            ]
-        )
-        event.wait()
-        self.host.set_subscribe_hook(prev_hook)  # Restore previous hook
-
-        self.debug("Subscribed to host topics")
-
-    def wait_for_subordinate_connected(self):
-        """ Starts to connect and wait till connected to subordinate """
-
-        self.debug("Establishing connection to subordinate")
-        event = threading.Event()
-        prev_hook = self.subordinate.connect_hook
-
-        def connect(client, userdata, flags, rc):
-            event.set()
-
-        self.subordinate.set_connect_hook(connect)
-
-        self.subordinate.connect()
-        event.wait()
-        self.subordinate.set_connect_hook(prev_hook)  # Restore previous hook
-
-        self.debug("Connection to subordinate established")
-
-    def wait_for_subordinate_subscribed(self):
-        """ Wait till subscribed to all required subordinate topics """
-
-        self.debug("Subscribing to subordinates topics")
-        event = threading.Event()
-        prev_hook = self.subordinate.subscribe_hook
-
-        def subscribe(client, userdata, mid, granted_qos):
-            event.set()
-
-        self.subordinate.set_subscribe_hook(subscribe)
-
-        self.subordinate.subscribe(
-            [
-                (f"foris-controller/{self.subordinate.controller_id}/notification/+/action/+", 0),
-                (f"foris-controller/{self.subordinate.controller_id}/reply/+", 0),
-            ]
-        )
-        event.wait()
-        self.host.set_subscribe_hook(prev_hook)  # Restore previous hook
-
-        self.debug("Subscribed to subordinates topics")
-
-    def handle_subordinate_queue(self):
-        self.debug("Subordinate queue feeder started")
-        while True:
-            message: typing.Optional[MQTTMessage] = self.subordinate_queue.get()
-            if message is None:
-                # terminating on empty message
-                return
-            self.subordinate.publish(message.topic, message.payload)
-            self.subordinate_queue.task_done()
-
-    def handle_host_queue(self):
-        self.debug("Host queue feeder started")
-        while True:
-            message: typing.Optional[MQTTMessage] = self.host_queue.get()
-            if message is None:
-                # terminating on empty message
-                return
-            self.host.publish(message.topic, message.payload)
-            self.host_queue.task_done()
-
-    def __init__(self, host: HostConf, subordinate: SubordinateConf):
+    def __init__(
+        self, host: HostConf, subordinate: SubordinateConf, subsubordinates: typing.List[SubsubordinateConf] = None
+    ):
         """ Initializes forwarder """
 
         self.host = Client(host.client_settings(), f"{host.controller_id}->{subordinate.controller_id}")
         self.subordinate = Client(subordinate.client_settings(), f"{subordinate.controller_id}->{host.controller_id}")
+        self.subsubordinates: typing.List[SubsubordinateConf] = subsubordinates or []
 
         # initialize forwarder threads and queues
-        self.host_queue: queue.LifoQueue = queue.LifoQueue()
+        self.host_queue: queue.Queue[typing.Union[QueueItem, bool]] = queue.Queue()
         self.host_queue_worker = threading.Thread(
             target=self.handle_host_queue,
             daemon=True,
         )
-        self.host_queue_worker.start()
 
-        self.subordinate_queue: queue.LifoQueue = queue.LifoQueue()
+        self.subordinate_queue: queue.Queue[typing.Union[QueueItem, bool]] = queue.Queue()
         self.subordinate_queue_worker = threading.Thread(
             target=self.handle_subordinate_queue,
             daemon=True,
         )
-        self.subordinate_queue_worker.start()
+        self.register_message_handlers()
+        self.host_ready = False
+        self.subordinate_ready = False
 
-        self.debug("Initialized")
+        self.debug("Workers initialized")
+
+        self.subordinate_queue.put(Connect())
+        self.host_queue.put(Connect())
+        self.plan_subscribe(subordinate.controller_id)
+        for subsubordinate in self.subsubordinates:
+            self.plan_subscribe(subsubordinate.controller_id)
+        self.host_queue.put(True)  # Initialized
+        self.subordinate_queue.put(True)  # Initialized
+
+        self.debug("Planned to establish connection and topic subscription")
+
+    @property
+    def ready(self):
+        return self.subordinate_ready and self.host_ready
+
+    @staticmethod
+    def suboridnate_topics_for_controller(controller_id: str) -> typing.List[typing.Tuple[str, int]]:
+        return [
+            (f"foris-controller/{controller_id}/notification/+/action/+", 0),
+            (f"foris-controller/{controller_id}/reply/+", 0),
+        ]
+
+    @staticmethod
+    def host_topics_for_controller(controller_id: str) -> typing.List[typing.Tuple[str, int]]:
+        return [
+            (f"foris-controller/{controller_id}/request/+/action/+", 0),
+            (f"foris-controller/{controller_id}/request/+/list", 0),
+            (f"foris-controller/{controller_id}/list", 0),
+            (f"foris-controller/{controller_id}/schema", 0),
+        ]
+
+    def __str__(self):
+        return f"{self.host}->{self.subordinate}"
+
+    def handle_subordinate_queue(self):
+        self.debug("Subordinate queue handler started")
+        while True:
+            item: typing.Optional[QueueItem] = self.subordinate_queue.get()
+            self.subordinate_queue.task_done()
+
+            if item is True:
+                self.subordinate_ready = True
+                continue
+
+            if item is False:
+                self.subordinate_ready = False
+                # terminating on empty message
+                return
+            item.perform(self.subordinate)  # TODO not checking for failed
+
+    def handle_host_queue(self):
+        self.debug("Host queue feeder started")
+        while True:
+            item: typing.Optional[QueueItem] = self.host_queue.get()
+            self.host_queue.task_done()
+
+            if item is True:
+                self.host_ready = True
+                continue
+
+            if item is False:
+                self.host_ready = False
+                # terminating on empty message
+                return
+            item.perform(self.host)  # TODO not checking for failed
 
     def register_message_handlers(self):
         """ Register message handlers for forwarding """
@@ -177,123 +270,64 @@ class Forwarder(LoggingMixin):
         # setting message hooks
         def host_to_subordinate(client, userdata, message: MQTTMessage):
             self.debug("Msg from host to subordinate (len=%d)", len(message.payload))
-            self.subordinate_queue.put(message)
+            self.subordinate_queue.put(Publish(message))
 
         self.host.set_message_hook(host_to_subordinate)
 
         def subordinate_to_host(client, userdata, message: MQTTMessage):
             self.debug("Msg from subordinate to host (len=%d)", len(message.payload))
-            self.host_queue.put(message)
+            self.host_queue.put(Publish(message))
 
         self.subordinate.set_message_hook(subordinate_to_host)
 
+    def plan_subscribe(self, controller_id: str):
+        self.host_queue.put(Subscribe(Forwarder.host_topics_for_controller(controller_id)))
+        self.subordinate_queue.put(Subscribe(Forwarder.suboridnate_topics_for_controller(controller_id)))
+
+    def plan_unsubscribe(self, controller_id: str):
+        self.host_queue.put(Unsubscribe([e[0] for e in Forwarder.host_topics_for_controller(controller_id)]))
+        self.subordinate_queue.put(
+            Unsubscribe([e[0] for e in Forwarder.suboridnate_topics_for_controller(controller_id)])
+        )
+
     def start(self):
         """ Seth the hooks and starts to connect to both subordinate and host """
-        self.debug("Setting hooks")
 
-        self.register_message_handlers()
-
-        # setting connect hooks
-        def host_connect(client, userdata, flags, rc):
-            if rc == 0:
-                self.debug("Host connected -> subscribing for topics")
-                self.host.subscribe(
-                    [
-                        (f"foris-controller/{self.subordinate.controller_id}/request/+/action/+", 0),
-                        (f"foris-controller/{self.subordinate.controller_id}/request/+/list", 0),
-                        (f"foris-controller/{self.subordinate.controller_id}/list", 0),
-                        (f"foris-controller/{self.subordinate.controller_id}/schema", 0),
-                    ]
-                )
-
-        self.host.set_connect_hook(host_connect)
-
-        def subordinate_connect(client, userdata, flags, rc):
-            if rc == 0:
-                self.debug("Subordinate connected -> subscribing for topics")
-                self.subordinate.subscribe(
-                    [
-                        (f"foris-controller/{self.subordinate.controller_id}/notification/+/action/+", 0),
-                        (f"foris-controller/{self.subordinate.controller_id}/reply/+", 0),
-                    ]
-                )
-
-        self.subordinate.set_connect_hook(subordinate_connect)
-
-        # setting subscribe hooks
-        def host_subscribe(client, userdata, mid, granted_qos):
-            self.debug("Subscribed to host topics.")
-
-        self.host.set_subscribe_hook(host_subscribe)
-
-        def subordinate_subscribe(client, userdata, mid, granted_qos):
-            self.debug("Subscribed to subordinate topics.")
-
-        self.subordinate.set_subscribe_hook(subordinate_subscribe)
-
-        # starting to connect
-        self.debug("Connecting")
-        self.host.connect()
-        self.subordinate.connect()
-
-    def __str__(self):
-        return f"{self.host}-{self.subordinate}"
+        # start the workers
+        self.debug("Starting workers")
+        self.host_queue_worker.start()
+        self.subordinate_queue_worker.start()
 
     def stop(self):
         """ Send request to disconnect """
-        self.debug("Disconnecting")
+        self.debug("Stopping")
 
-        # setting logging hooks
-        def disconnect_subordinate(client, userdata, rc):
-            self.debug("Subordinate disconnected")
+        # Disconnect
+        self.host_queue.put(Disconnect())
+        self.subordinate_queue.put(Disconnect())
 
-        def disconnect_host(client, userdata, rc):
-            self.debug("Host disconnected")
+        # Terminate workers
+        self.host_queue.put(False)
+        self.subordinate_queue.put(False)
 
-        self.host.set_disconnect_hook(disconnect_host)
-        self.subordinate.set_disconnect_hook(disconnect_subordinate)
+    def wait_for_ready(self, timeout: typing.Optional[float] = None) -> bool:
 
-        # Calling disconnect to eventually disconnect
-        self.host.disconnect()
-        self.subordinate.disconnect()
+        start = time.monotonic()
+        while not self.ready:
+            if timeout:
+                if time.monotonic() - start > timeout:
+                    return False
+            time.sleep(SLEEP_STEP)
 
-        # Terminate queue workers
-        self.host_queue.put(None)
-        self.subordinate_queue.put(None)
+        return True
 
-    def wait_for_disconnected(self):
-        """ Disconnects and blocks until disconneted """
+    def wait_for_disconnected(self, timeout: typing.Optional[float] = None) -> bool:
 
-        self.debug("Waiting for disconnected")
+        start = time.monotonic()
+        while self.subordinate.connected or self.host.connected:
+            if timeout:
+                if time.monotonic() - start > timeout:
+                    return False
+            time.sleep(SLEEP_STEP)
 
-        if self.subordinate.connected:
-            subordinate_event = threading.Event()
-
-            def disconnect_subordinate(client, userdata, rc):
-                self.debug("Subordinate disconnected")
-                subordinate_event.set()
-
-            self.subordinate.set_disconnect_hook(disconnect_subordinate)
-            self.subordinate.disconnect()
-
-            subordinate_event.wait()
-
-        if self.host.connected:
-            host_event = threading.Event()
-
-            def disconnect_host(client, userdata, rc):
-                self.debug("Host disconnected")
-                host_event.set()
-
-            self.host.set_disconnect_hook(disconnect_host)
-            self.host.disconnect()
-
-            host_event.wait()
-
-        # Terminate queue workers
-        self.host_queue.put(None)
-        self.host_queue_worker.join()
-        self.subordinate_queue.put(None)
-        self.subordinate_queue_worker.join()
-
-        self.debug("Disconnected")
+        return True

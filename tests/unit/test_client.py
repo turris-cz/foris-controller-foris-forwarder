@@ -13,7 +13,7 @@ def test_connection(
     wait_for_disconnected,
 ):
     process, settings, _ = connection_settings
-    client = Client(settings)
+    client = Client(settings, keepalive=5)
 
     assert client.connected is False
 
@@ -107,6 +107,25 @@ def test_messaging(mosquitto_host, mosquitto_subordinate, prepare_ca, connection
     # check that the message was obtained by the listener
     assert message_event.wait(TIMEOUT)
 
+    # unsubscribe and wait to be sure that message is not recieved
+    unsubscribe_event = threading.Event()
+
+    def unsubscribe(client, userdata, mid):
+        unsubscribe_event.set()
+
+    client_listener.set_unsubscribe_hook(unsubscribe)
+
+    assert client_listener.unsubscribe(["/messaging-test/+"])
+    assert unsubscribe_event.wait(TIMEOUT)
+
+    message_event.clear()
+    publish_event.clear()
+
+    assert client_publisher.publish("/messaging-test/first", '{"some": "data"}') is not None
+    assert publish_event.wait(TIMEOUT)
+    assert not message_event.wait(2.0)  # no message should be recieved in 2 seconds
+
+    # cleanup
     wait_for_disconnected(client_publisher)
     wait_for_disconnected(client_listener)
 

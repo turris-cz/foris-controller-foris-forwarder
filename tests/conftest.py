@@ -172,9 +172,15 @@ def forwarder(token_dir, mosquitto_host, mosquitto_subordinate):
         token_dir,
     )
 
-    forwarder = Forwarder(host_conf, subordinate_conf)
-    forwarder.wait_for_connected()
+    return Forwarder(host_conf, subordinate_conf)
+
+
+@pytest.fixture(scope="function")
+def connected_forwarder(forwarder):
+    forwarder.start()
+    forwarder.wait_for_ready()
 
     yield forwarder
 
+    forwarder.stop()
     forwarder.wait_for_disconnected()

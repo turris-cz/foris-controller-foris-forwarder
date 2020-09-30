@@ -73,11 +73,11 @@ class Client(LoggingMixin):
     as those which are received
     """
 
-    KEEPALIVE = 30
+    DEFAULT_KEEPALIVE = 30
 
     logger = logging.getLogger(__file__)
 
-    def __init__(self, settings: Settings, name: typing.Optional[str] = None):
+    def __init__(self, settings: Settings, name: typing.Optional[str] = None, keepalive: int = DEFAULT_KEEPALIVE):
         self.name = name
         self.controller_id = settings.controller_id
         self.settings = settings
@@ -87,11 +87,13 @@ class Client(LoggingMixin):
         self.subscribe_hook: typing.Optional[
             typing.Optional[typing.Callable[[mqtt.Client, dict, int, typing.List[int]], None]]
         ] = None
+        self.unsubscribe_hook: typing.Optional[typing.Optional[typing.Callable[[mqtt.Client, dict, int], None]]] = None
         self.message_hook: typing.Optional[
             typing.Optional[typing.Callable[[mqtt.Client, dict, mqtt.MQTTMessage], None]]
         ] = None
         self._connected = threading.Event()
         self.client: typing.Optional[mqtt.Client] = None
+        self.keepalive = keepalive
 
     def __str__(self):
         return f"{self.controller_id}"
@@ -113,6 +115,12 @@ class Client(LoggingMixin):
         hook: typing.Optional[typing.Callable[[mqtt.Client, dict, int, typing.List[int]], None]],
     ):
         self.subscribe_hook = hook
+
+    def set_unsubscribe_hook(
+        self,
+        hook: typing.Optional[typing.Callable[[mqtt.Client, dict, int], None]],
+    ):
+        self.unsubscribe_hook = hook
 
     def set_message_hook(
         self,
@@ -176,6 +184,11 @@ class Client(LoggingMixin):
             if self.subscribe_hook:
                 self.subscribe_hook(client, userdata, mid, granted_qos)
 
+        def on_unsubscribe(client, userdata, mid):
+            self.debug("Unubscribed (mid=%d) was published", mid)
+            if self.unsubscribe_hook:
+                self.unsubscribe_hook(client, userdata, mid)
+
         def on_message(client, userdata, message: mqtt.MQTTMessage):
             self.debug("Message Received (len=%s) for topic `%s`", len(message.payload), message.topic)
             if self.message_hook:
@@ -185,8 +198,9 @@ class Client(LoggingMixin):
         self.client.on_disconnect = on_disconnect
         self.client.on_publish = on_publish
         self.client.on_subscribe = on_subscribe
+        self.client.on_unsubscribe = on_unsubscribe
         self.client.on_message = on_message
-        self.client.connect_async(self.settings.host, self.settings.port, Client.KEEPALIVE)
+        self.client.connect_async(self.settings.host, self.settings.port, self.keepalive)
 
         self.client.loop_start()
 
@@ -225,6 +239,24 @@ class Client(LoggingMixin):
                 return False
         else:
             self.warning("Disconnected, failed to subscribe to '%s'", topics)
+            return False
+
+    def unsubscribe(self, topics: typing.List[str]) -> bool:
+        """Unsubscibes from a topic
+
+        This doesn't mean the client is unsubscribed for given topic.
+        on_unsubscribe hook should be checked to determined whether the topic was subscribed
+        """
+        if self.connected and self.client is not None:
+            (res, mid) = self.client.unsubscribe(topics)
+            if res == mqtt.MQTT_ERR_SUCCESS:
+                self.debug("Unsubscribed from '%s'", topics)
+                return True
+            else:
+                self.warning("Failed to unsubscribe from '%s'", topics)
+                return False
+        else:
+            self.warning("Disconnected, failed to unsubscribe from '%s'", topics)
             return False
 
     def disconnect(self):

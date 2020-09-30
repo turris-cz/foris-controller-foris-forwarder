@@ -10,7 +10,7 @@ TIMEOUT = 30.0
 
 
 @pytest.fixture(scope="function")
-def foris_controller(forwarder):
+def foris_controller(connected_forwarder):
     controller_id = "000000050000006B"
 
     instance = subprocess.Popen(

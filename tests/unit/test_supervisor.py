@@ -31,3 +31,5 @@ def test_ip_workflow(forwarder, mosquitto_subordinate):
     fs.current_ip_start -= ForwarderSupervisor.NEXT_IP_TIMEOUT * 2
     fs.check()
     assert fs.current_ip == ip("192.168.2.2")
+
+    fs.terminate()
