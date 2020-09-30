@@ -54,10 +54,13 @@ setup(
         "pytest",
         "pytest-cov",
         "foris-controller",
+        "foris-client",
+        "python-prctl",
     ],
     entry_points={"console_scripts": ["foris-forwarder = foris_forwarder.__main__:main"]},
     dependency_links=[
         "git+https://gitlab.nic.cz/turris/foris-controller/foris-controller.git#egg=foris-controller",
+        "git+https://gitlab.nic.cz/turris/foris-controller/foris-client.git#egg=foris-client",
         "git+https://gitlab.nic.cz/turris/turrishw.git#egg=turrishw",
         "git+https://gitlab.nic.cz/turris/updater/supervisor.git#egg=svupdater",
         "git+https://gitlab.nic.cz/turris/foris-controller/foris-schema.git#egg=foris-schema",
