@@ -81,7 +81,7 @@ def main() -> typing.NoReturn:
         "--passwd-file",
         type=read_passwd_file,
         help="path to passwd file (first record will be used to authenticate)",
-        default=None,
+        default=("", ""),
     )
     parser.add_argument(
         "--uci-config-dir",
