@@ -188,12 +188,12 @@ class Configuration(LoggingMixin):
         return copy.deepcopy(self._host)
 
     @property
-    def subordinates(self):
+    def subordinates(self) -> typing.Dict[str, Subordinate]:
         """ List current subordinates """
         return copy.deepcopy(self._subordinates)
 
     @property
-    def subsubordinates(self):
+    def subsubordinates(self) -> typing.Dict[str, Subsubordinate]:
         """ List current subsubordinates """
         return copy.deepcopy(self._subsubordinates)
 

@@ -10,7 +10,7 @@ TIMEOUT = 30.0
 
 @pytest.fixture(scope="function")
 def host_settings(mosquitto_host):
-    process, username, password, port = mosquitto_host
+    process, username, password, port, *_ = mosquitto_host
     return (
         process,
         PasswordSettings("000000050000005A", port, username, password),

@@ -91,7 +91,10 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
 
         # Create forwarders
         for controller_id, subordinate in self.configuration.subordinates.items():
-            self._supervisors[controller_id] = ForwarderSupervisor(Forwarder(self.configuration.host, subordinate))
+            subsubordinates = [e for e in self.configuration.subsubordinates.values() if e.via == controller_id]
+            self._supervisors[controller_id] = ForwarderSupervisor(
+                Forwarder(self.configuration.host, subordinate, subsubordinates)
+            )
 
         # initiate zconf
         zconf_listener = ZconfListener()

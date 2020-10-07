@@ -67,7 +67,18 @@ def foris_sender(foris_controller):
 
 
 @pytest.fixture(scope="function")
-def foris_listener(foris_controller):
+def super_foris_sender(super_forwarder, foris_controller):
+    sender = MqttSender("127.0.0.1", 11888, TIMEOUT, credentials=("username", "password"))
+
+    yield sender
+
+    sender.disconnect()
+
+
+@pytest.fixture(scope="function")
+def foris_listener(
+    foris_controller,
+):
     output = []
 
     def write_to_output(data, controller_id):
@@ -75,6 +86,22 @@ def foris_listener(foris_controller):
 
     listener = MqttListener(
         "127.0.0.1", 11883, write_to_output, controller_id="000000050000006B", credentials=("username", "password")
+    )
+
+    yield listener, output
+
+    listener.disconnect()
+
+
+@pytest.fixture(scope="function")
+def super_foris_listener(super_forwarder, foris_controller):
+    output = []
+
+    def write_to_output(data, controller_id):
+        output.append(data)
+
+    listener = MqttListener(
+        "127.0.0.1", 11888, write_to_output, controller_id="000000050000006B", credentials=("username", "password")
     )
 
     yield listener, output
