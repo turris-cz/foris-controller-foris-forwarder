@@ -29,4 +29,4 @@ def test_notification(super_foris_listener, foris_controller):
     listener.timeout = 2.0
     listener.listen()
 
-    assert len(output) > 1
+    assert len(output) > 0

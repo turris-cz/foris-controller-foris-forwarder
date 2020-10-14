@@ -41,28 +41,21 @@ setup(
         "zeroconf",
         "pyuci @ git+https://gitlab.labs.nic.cz/turris/pyuci.git",
     ],
-    setup_requires=["pytest-runner"],
     extras_require={
         "dev": [
             "pre-commit",
             "flake8",
             "black",
             "isort",
-        ]
+        ],
+        "test": [
+            "tox",
+            "pytest",
+            "pytest-cov",
+            "foris-controller @ git+https://gitlab.nic.cz/turris/foris-controller/foris-controller.git",
+            "foris-client @ git+https://gitlab.nic.cz/turris/foris-controller/foris-client.git",
+            "python-prctl",
+        ],
     },
-    tests_require=[
-        "pytest",
-        "pytest-cov",
-        "foris-controller",
-        "foris-client",
-        "python-prctl",
-    ],
     entry_points={"console_scripts": ["foris-forwarder = foris_forwarder.__main__:main"]},
-    dependency_links=[
-        "git+https://gitlab.nic.cz/turris/foris-controller/foris-controller.git#egg=foris-controller",
-        "git+https://gitlab.nic.cz/turris/foris-controller/foris-client.git#egg=foris-client",
-        "git+https://gitlab.nic.cz/turris/turrishw.git#egg=turrishw",
-        "git+https://gitlab.nic.cz/turris/updater/supervisor.git#egg=svupdater",
-        "git+https://gitlab.nic.cz/turris/foris-controller/foris-schema.git#egg=foris-schema",
-    ],
 )

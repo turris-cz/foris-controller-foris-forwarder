@@ -10,9 +10,8 @@ pytest:
   stage: code-quality
   script:
     - source /tmp/test/bin/activate
-    - pip install git+https://gitlab.nic.cz/turris/foris-controller/foris-controller.git
-    - pip install .
-    - python setup.py test --addopts="--junitxml=report.xml --cov-report xml:coverage.xml --cov-report term --cov=foris_forwarder tests  --log-cli-level CRITICAL"
+    - pip install tox
+    - tox
   artifacts:
     reports:
       junit: report.xml
