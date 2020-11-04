@@ -33,6 +33,7 @@ from .configuration import Subsubordinate as SubsubordinateConf
 from .logger import LoggingMixin
 
 SLEEP_STEP = 0.2
+QUEUE_TIMEOUT = 10.0
 
 
 class QueueItem(metaclass=abc.ABCMeta):
@@ -173,23 +174,36 @@ class Forwarder(LoggingMixin):
     logger = logging.getLogger(__file__)
 
     def __init__(
-        self, host: HostConf, subordinate: SubordinateConf, subsubordinates: typing.List[SubsubordinateConf] = None
+        self,
+        host_conf: HostConf,
+        subordinate_conf: SubordinateConf,
+        subsubordinate_confs: typing.List[SubsubordinateConf] = None,
     ):
         """ Initializes forwarder """
 
-        self.host = Client(host.client_settings(), f"{host.controller_id}->{subordinate.controller_id}")
-        self.subordinate = Client(subordinate.client_settings(), f"{subordinate.controller_id}->{host.controller_id}")
-        self.subsubordinates: typing.List[SubsubordinateConf] = subsubordinates or []
+        self.host_conf = host_conf
+        self.host = Client(
+            host_conf.client_settings(),
+            f"{host_conf.controller_id}->{subordinate_conf.controller_id}",
+        )
+        self.subordinate_conf = subordinate_conf
+        self.subordinate = Client(
+            subordinate_conf.client_settings(),
+            f"{subordinate_conf.controller_id}->{host_conf.controller_id}",
+        )
+        self.subsubordinate_confs: typing.List[SubsubordinateConf] = subsubordinate_confs or []
 
         # initialize forwarder threads and queues
         self.host_queue: queue.Queue[typing.Union[QueueItem, bool]] = queue.Queue()
         self.host_queue_worker = threading.Thread(
+            name="host-queue-worker",
             target=self.handle_host_queue,
             daemon=True,
         )
 
         self.subordinate_queue: queue.Queue[typing.Union[QueueItem, bool]] = queue.Queue()
         self.subordinate_queue_worker = threading.Thread(
+            name="subordinate-queue-worker",
             target=self.handle_subordinate_queue,
             daemon=True,
         )
@@ -201,9 +215,9 @@ class Forwarder(LoggingMixin):
 
         self.subordinate_queue.put(Connect())
         self.host_queue.put(Connect())
-        self.plan_subscribe(subordinate.controller_id)
-        for subsubordinate in self.subsubordinates:
-            self.plan_subscribe(subsubordinate.controller_id)
+        self.plan_subscribe(subordinate_conf.controller_id)
+        for subsubordinate_conf in self.subsubordinate_confs:
+            self.plan_subscribe(subsubordinate_conf.controller_id)
         self.host_queue.put(True)  # Initialized
         self.subordinate_queue.put(True)  # Initialized
 
@@ -214,7 +228,9 @@ class Forwarder(LoggingMixin):
         return self.subordinate_ready and self.host_ready
 
     @staticmethod
-    def suboridnate_topics_for_controller(controller_id: str) -> typing.List[typing.Tuple[str, int]]:
+    def suboridnate_topics_for_controller(
+        controller_id: str,
+    ) -> typing.List[typing.Tuple[str, int]]:
         return [
             (f"foris-controller/{controller_id}/notification/+/action/+", 0),
             (f"foris-controller/{controller_id}/reply/+", 0),
@@ -246,7 +262,8 @@ class Forwarder(LoggingMixin):
                 self.subordinate_ready = False
                 # terminating on empty message
                 return
-            item.perform(self.subordinate)  # TODO not checking for failed
+            # TODO perhaps flush the queue if connection fails
+            item.perform(self.subordinate, timeout=QUEUE_TIMEOUT)
 
     def handle_host_queue(self):
         self.debug("Host queue feeder started")
@@ -262,20 +279,26 @@ class Forwarder(LoggingMixin):
                 self.host_ready = False
                 # terminating on empty message
                 return
-            item.perform(self.host)  # TODO not checking for failed
+            # TODO perhaps flush the queue if connection fails
+            item.perform(self.host, timeout=QUEUE_TIMEOUT)
 
     def register_message_handlers(self):
         """ Register message handlers for forwarding """
 
         # setting message hooks
         def host_to_subordinate(client, userdata, message: MQTTMessage):
-            self.debug("Msg from host to subordinate (len=%d)", len(message.payload))
+            self.debug(f"Msg from host to subordinate (len={len(message.payload)})")
             self.subordinate_queue.put(Publish(message))
 
         self.host.set_message_hook(host_to_subordinate)
 
+        self.register_subordinate_message_handlers()
+
+    def register_subordinate_message_handlers(self):
+        """ Registers subordinate message handlers """
+
         def subordinate_to_host(client, userdata, message: MQTTMessage):
-            self.debug("Msg from subordinate to host (len=%d)", len(message.payload))
+            self.debug("Msg from subordinate to host (len={len(message.payload)})")
             self.host_queue.put(Publish(message))
 
         self.subordinate.set_message_hook(subordinate_to_host)
@@ -331,3 +354,42 @@ class Forwarder(LoggingMixin):
             time.sleep(SLEEP_STEP)
 
         return True
+
+    def reload_subordinate(self, subordinate_conf: SubordinateConf):
+        self.debug(f"Reloading subordinate {subordinate_conf} ({subordinate_conf.ip}:{subordinate_conf.port})")
+
+        # disconnect current subordinate
+        self.subordinate_queue.put(Disconnect())
+
+        # wait till subordinate disconnected
+        while self.subordinate.connected:
+            time.sleep(SLEEP_STEP)
+
+        self.debug("Current Subordinate disconnected")
+
+        # Clear suboridnate queue
+        try:
+            while self.subordinate_queue.get(False):
+                self.subordinate_queue.task_done()
+        except queue.Empty:
+            pass
+
+        self.subordinate_conf = subordinate_conf
+        self.subordinate = Client(
+            subordinate_conf.client_settings(),
+            f"{subordinate_conf.controller_id}->{self.host_conf.controller_id}",
+        )
+
+        # new subordinate message handlers needs to be registered
+        self.register_subordinate_message_handlers()
+        self.debug("Message handlers connected")
+        self.subordinate_queue.put(Connect())
+        self.subordinate_queue.put(
+            Subscribe(Forwarder.suboridnate_topics_for_controller(subordinate_conf.controller_id))
+        )
+
+        self.debug("Planning for new topic subscription")
+        for subsubordinate_conf in self.subsubordinate_confs:
+            self.subordinate_queue.put(
+                Subscribe(Forwarder.suboridnate_topics_for_controller(subsubordinate_conf.controller_id))
+            )

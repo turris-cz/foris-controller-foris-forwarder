@@ -58,7 +58,7 @@ def convert_to_controller_id(controller_id: str) -> str:
 
 
 def init_logging(debug: bool):
-    logging_format = "%(levelname)s:%(name)s:%(message)"
+    logging_format = "%(levelname)s:%(name)s:%(message)s"
     if debug:
         logging.basicConfig(level=logging.DEBUG, format=f"%(threadName)s: {logging.BASIC_FORMAT}")
     else:

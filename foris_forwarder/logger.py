@@ -26,17 +26,17 @@ class LoggingMixin(metaclass=ABCMeta):
     def logger(self):
         pass
 
-    def warning(self, template, *args, **kwargs):
-        self.logger.warning(f"%s: {template}", self, *args, **kwargs)
+    def warning(self, msg):
+        self.logger.warning(f"{self}: {msg}")
 
-    def debug(self, template, *args, **kwargs):
-        self.logger.debug(f"%s: {template}", self, *args, **kwargs)
+    def debug(self, msg):
+        self.logger.debug(f"{self}: {msg}")
 
-    def info(self, template, *args, **kwargs):
-        self.logger.info(f"%s: {template}", self, *args, **kwargs)
+    def info(self, msg):
+        self.logger.info(f"{self}: {msg}")
 
-    def error(self, template, *args, **kwargs):
-        self.logger.error(f"%s: {template}", self, *args, **kwargs)
+    def error(self, msg):
+        self.logger.error(f"{self}: {msg}")
 
-    def critical(self, template, *args, **kwargs):
-        self.logger.critical(f"%s: {template}", self, *args, **kwargs)
+    def critical(self, msg):
+        self.logger.critical(f"{self}: {msg}")

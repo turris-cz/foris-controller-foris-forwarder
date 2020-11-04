@@ -81,6 +81,7 @@ class Subordinate(BaseBus):
         self.port = port
         self.enabled = enabled
 
+        self.fosquitto_data_dir = fosquitto_data_dir
         self.ca_path = fosquitto_data_dir / self.controller_id / "ca.crt"
         self.crt_path = fosquitto_data_dir / self.controller_id / "token.crt"
         self.key_path = fosquitto_data_dir / self.controller_id / "token.key"
@@ -104,6 +105,19 @@ class Subordinate(BaseBus):
             self.ca_path,
             self.crt_path,
             self.key_path,
+        )
+
+    def clone_with_overrides(
+        self,
+        ip: typing.Optional[ipaddress.IPv4Address] = None,
+        port: typing.Optional[int] = None,
+    ) -> "Subordinate":
+        return Subordinate(
+            controller_id=self.controller_id,
+            ip=ip or self.ip,
+            port=port or self.port,
+            enabled=self.enabled,
+            fosquitto_data_dir=self.fosquitto_data_dir,
         )
 
 
@@ -159,10 +173,10 @@ class Configuration(LoggingMixin):
                 try:
                     subordinate = Subordinate(controller_id, ip, port, enabled, self.fosquitto_data_dir)
                 except ValueError as exc:
-                    self.warning("Error loading subordinate '%s': %s", controller_id, exc)
+                    self.warning(f"Error loading subordinate '{controller_id}': {exc}")
                     continue
 
-                self.debug("Loading %s", subordinate)
+                self.debug(f"Loading {subordinate}")
                 self._subordinates[controller_id] = subordinate
 
             subsubordinates_uci = [k for k in eu.get("fosquitto") if eu.get("fosquitto", k) == "subsubordinate"]
@@ -172,14 +186,10 @@ class Configuration(LoggingMixin):
                 via = eu.get("fosquitto", controller_id, "via")
 
                 if via not in self._subordinates:
-                    self.warning(
-                        "Error loading subsubordinate '%s': via '%s' is not in subordinates",
-                        controller_id,
-                        via,
-                    )
+                    self.warning(f"Error loading subsubordinate '{controller_id}': via '{via}' is not in subordinates")
                     continue
                 subsubordinate = Subsubordinate(controller_id, via, enabled)
-                self.debug("Loading %s", subsubordinate)
+                self.debug("Loading {subsubordinate}")
                 self._subsubordinates[controller_id] = subsubordinate
 
     @property

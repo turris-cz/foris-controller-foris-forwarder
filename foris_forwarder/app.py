@@ -84,7 +84,7 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
             for controller_id, supervisor in self._supervisors.items():
                 print(
                     supervisor.forwarder,
-                    f"{supervisor.forwarder.host.connected}-{supervisor.forwarder.subordinate.connected}",
+                    f"{supervisor.forwarder.host.connected}-{supervisor.forwarder.subordinate.connected} {[str(e) for e in supervisor.ips]}",
                 )
 
     def run(self) -> typing.NoReturn:
@@ -101,6 +101,7 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
 
         # hook to zconf listener to update list of ips
         def zconf_handler(controller_id: str, addresses: typing.List[ipaddress.IPv4Address]):
+            self.debug(f"Recieved zconf update from {controller_id}: {[str(e) for e in addresses]}")
             supervisor = self._supervisors.get(controller_id)
             if supervisor:
                 supervisor.zconf_update(addresses)
@@ -114,10 +115,13 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
 
             # Update supervisors state
             with self._supervisors_lock:
-                for supervisors in self._supervisors.values():
-                    supervisors.check()
+                for supervisor in self._supervisors.values():
+                    supervisor.check()
 
             # sleep for required interval
             sleep_for = start_at + App.WAIT_LOOP_PERIOD - time.monotonic()
             if sleep_for > 0:
                 time.sleep(sleep_for)
+
+    def __str__(self):
+        return "MainApp"

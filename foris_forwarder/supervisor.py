@@ -4,6 +4,7 @@ import threading
 import time
 import typing
 
+from .configuration import Subordinate as SubordinateConf
 from .forwarder import Forwarder
 from .logger import LoggingMixin
 
@@ -14,7 +15,7 @@ class ForwarderSupervisor(LoggingMixin):
     It should handle reconnects and determine to what ip to connect
     """
 
-    NEXT_IP_TIMEOUT = 5.0  # in seconds
+    NEXT_IP_TIMEOUT = 30.0  # in seconds
     ZCONF_BUFFER_COUNT = 100
 
     class IpStat:
@@ -68,7 +69,7 @@ class ForwarderSupervisor(LoggingMixin):
         """ update ips obtained using zconf """
         now = time.monotonic()
 
-        self.debug("Got addresses from zconf %s", map(str, ips))
+        self.warning(f"Got addresses from zconf: {[str(e) for e in ips]}")
 
         with self.lock:
             # merge two lists
@@ -99,9 +100,8 @@ class ForwarderSupervisor(LoggingMixin):
         # TODO
         raise NotImplementedError()
 
-    def subordinate_config_update(self):
-        # TODO
-        raise NotImplementedError()
+    def subordinate_config_update(self, subordinate_conf: SubordinateConf):
+        self.forwarder.reload_subordinate(subordinate_conf)
 
     def check(self):
         now = time.monotonic()
@@ -126,6 +126,10 @@ class ForwarderSupervisor(LoggingMixin):
                 # Lets try new address
                 self.current_ip = self.ips[0]
                 self.current_ip_start = now
+
+                # Reload subordinate with a new config
+                new_config = self.forwarder.subordinate_conf.clone_with_overrides(ip=self.current_ip)
+                self.forwarder.reload_subordinate(new_config)
 
     def __str__(self):
         return f"supervisor-{self.forwarder.subordinate.controller_id}"

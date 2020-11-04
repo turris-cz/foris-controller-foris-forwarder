@@ -18,6 +18,7 @@
 #
 
 import ipaddress
+import json
 import logging
 import re
 import typing
@@ -30,7 +31,6 @@ from .logger import LoggingMixin
 class Listener(LoggingMixin):
     TYPE = "_mqtt._tcp.local."
     NAME = "foris-controller"
-    TIMEOUT = 5000  # 5 seconds
 
     logger = logging.getLogger(__file__)
 
@@ -43,37 +43,43 @@ class Listener(LoggingMixin):
 
     def remove_service(self, zeroconf: Zeroconf, type: str, name: str):
         """ Called when service is removed (part of zconf API) """
-        self.debug("Got message that service %s was removed", name)
+        self.debug(f"Got message that service '{name}' was removed")
 
         controller_id = Listener._extract_controller_id_from_name(name)
         if not controller_id:  # other service
             return
         if self._remove_service_handler:
-            self.debug("Calling remove handler with (%s)", controller_id)
+            self.debug(f"Calling remove handler with {controller_id}")
             self._remove_service_handler(controller_id)
 
     def add_service(self, zeroconf: Zeroconf, type: str, name: str):
         """ Called when service is added (part of zconf API) """
 
-        self.debug("Got message that service %s was registered", name)
+        self.debug(f"Got message that service {name} was registered")
 
         controller_id = Listener._extract_controller_id_from_name(name)
         if not controller_id:  # other service
             return
 
         info = zeroconf.get_service_info(type, name)
-        addresses = [ipaddress.ip_address(ip) for ip in info.addresses]
+
+        if b"addresses" not in info.properties:
+            self.debug("No addresses in zconf service announcement")
+            return
+
+        addresses = [ipaddress.ip_address(ip) for ip in json.loads(info.properties[b"addresses"])]
         if self._add_service_handler:
-            self.debug("Calling add handler with (%s, %s)", controller_id, addresses)
+            self.debug(f"Calling add handler with ({controller_id}, {[str(e) for e in addresses]})")
             self._add_service_handler(controller_id, addresses)
 
     def set_add_service_handler(
-        self, handler: typing.Optional[typing.Callable[[str, typing.List[ipaddress.IPv4Address]], None]]
+        self,
+        handler: typing.Optional[typing.Callable[[str, typing.List[ipaddress.IPv4Address]], None]],
     ):
         """Sets add service handler
         :param handler: None or callable which takes controller_id(str) as argument
         """
-        self.debug("Setting add handler to %s", handler)
+        self.debug(f"Setting add handler to {handler}")
 
         self._add_service_handler = handler
 
@@ -81,7 +87,7 @@ class Listener(LoggingMixin):
         """Sets remove service handler
         :param handler: None or callable which takes controller_id(str) as argument
         """
-        self.debug("Setting remove handler to %s", handler)
+        self.debug(f"Setting remove handler to {handler}")
 
         self._remove_service_handler = handler
 

@@ -1,3 +1,4 @@
+import json
 import threading
 
 import pytest
@@ -61,6 +62,7 @@ def zconf_announcer():
         "_mqtt._tcp.local.",
         "000000050000006B.foris-controller._mqtt._tcp.local.",
         parsed_addresses=["127.0.0.1"],
+        properties={"addresses": json.dumps(["127.0.0.1"])},
         port=11884,
     )
 

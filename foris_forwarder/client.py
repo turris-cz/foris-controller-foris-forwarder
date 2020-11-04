@@ -142,9 +142,9 @@ class Client(LoggingMixin):
         self.client.enable_logger(self.logger)
 
         if self.settings.ca_certs and self.settings.certfile and self.settings.keyfile:
-            self.debug("ca_certs: '%s'", self.settings.ca_certs)
-            self.debug("certfile: '%s'", self.settings.certfile)
-            self.debug("keyfile: '%s'", self.settings.keyfile)
+            self.debug(f"ca_certs: '{self.settings.ca_certs}'")
+            self.debug(f"certfile: '{self.settings.certfile}'")
+            self.debug(f"keyfile: '{self.settings.keyfile}'")
             self.client.tls_set(*map(str, (self.settings.ca_certs, self.settings.certfile, self.settings.keyfile)))
             self.client.tls_insecure_set(True)  # certificate is pinned the host name is not matching
         if self.settings.username and self.settings.password:
@@ -152,22 +152,20 @@ class Client(LoggingMixin):
 
         def on_connect(client, userdata, flags, rc):
             self.debug(
-                "Forwarded trying to connect to %s:%d",
-                self.settings.host,
-                self.settings.port,
+                f"Forwarded trying to connect to {self.settings.host}:{self.settings.port}",
             )
             if rc == 0:
-                self.debug("Connected to %s:%d", self.settings.host, self.settings.port)
+                self.debug(f"Connected to {self.settings.host}:{self.settings.port}")
                 self._connected.set()
             else:
-                self.warning("Failed to connect to %s:%d", self.settings.host, self.settings.port)
+                self.warning(f"Failed to connect to {self.settings.host}:{self.settings.port}")
 
             if self.connect_hook:
                 self.connect_hook(client, userdata, flags, rc)
 
         def on_disconnect(client, userdata, rc):
             if rc == 0:
-                self.debug("Disconnected from %s:%d", self.settings.host, self.settings.port)
+                self.debug(f"Disconnected from {self.settings.host}:{self.settings.port}")
 
             self._connected.clear()
 
@@ -175,22 +173,22 @@ class Client(LoggingMixin):
                 self.disconnect_hook(client, userdata, rc)
 
         def on_publish(client, userdata, mid):
-            self.debug("Published (id=%d) was published", mid)
+            self.debug(f"Published (mid={mid}) was published")
             if self.publish_hook:
                 self.publish_hook(client, userdata, mid)
 
         def on_subscribe(client, userdata, mid, granted_qos):
-            self.debug("Subscribed (mid=%d) was published", mid)
+            self.debug(f"Subscribed (mid={mid}) was published")
             if self.subscribe_hook:
                 self.subscribe_hook(client, userdata, mid, granted_qos)
 
         def on_unsubscribe(client, userdata, mid):
-            self.debug("Unubscribed (mid=%d) was published", mid)
+            self.debug(f"Unubscribed (mid={mid}) was published")
             if self.unsubscribe_hook:
                 self.unsubscribe_hook(client, userdata, mid)
 
         def on_message(client, userdata, message: mqtt.MQTTMessage):
-            self.debug("Message Received (len=%s) for topic `%s`", len(message.payload), message.topic)
+            self.debug(f"Message Received (len={len(message.payload)}) for topic `{message.topic}`")
             if self.message_hook:
                 self.message_hook(client, userdata, message)
 
@@ -214,13 +212,13 @@ class Client(LoggingMixin):
             message = self.client.publish(topic, data)
             # this doesn't mean that the message was publish (on_publish callback)
             if message.rc == mqtt.MQTT_ERR_SUCCESS:
-                self.debug("Publishing message to '%s' (mid=%d)", topic, message.mid)
+                self.debug(f"Publishing message to '{topic}' (mid={message.mid})")
                 return message.mid
             else:
-                self.warning("Failed to publish message to '%s'", topic)
+                self.warning(f"Failed to publish message to '{topic}'", topic)
                 return None
         else:
-            self.warning("Disconnected, can't send message to '%s'", topic)
+            self.warning(f"Disconnected, can't send message to '{topic}'")
             return None
 
     def subscribe(self, topics: typing.List[typing.Tuple[str, int]]) -> bool:
@@ -232,13 +230,13 @@ class Client(LoggingMixin):
         if self.connected and self.client is not None:
             (res, mid) = self.client.subscribe(topics)
             if res == mqtt.MQTT_ERR_SUCCESS:
-                self.debug("Subscribed to '%s'", topics)
+                self.debug(f"Subscribed to '{topics}'")
                 return True
             else:
-                self.warning("Failed to subscribe to '%s'", topics)
+                self.warning(f"Failed to subscribe to '{topics}'")
                 return False
         else:
-            self.warning("Disconnected, failed to subscribe to '%s'", topics)
+            self.warning(f"Disconnected, failed to subscribe to '{topics}'")
             return False
 
     def unsubscribe(self, topics: typing.List[str]) -> bool:
@@ -250,17 +248,18 @@ class Client(LoggingMixin):
         if self.connected and self.client is not None:
             (res, mid) = self.client.unsubscribe(topics)
             if res == mqtt.MQTT_ERR_SUCCESS:
-                self.debug("Unsubscribed from '%s'", topics)
+                self.debug(f"Unsubscribed from '{topics}'")
                 return True
             else:
-                self.warning("Failed to unsubscribe from '%s'", topics)
+                self.warning(f"Failed to unsubscribe from '{topics}'")
                 return False
         else:
-            self.warning("Disconnected, failed to unsubscribe from '%s'", topics)
+            self.warning("Disconnected, failed to unsubscribe from '{topics}'")
             return False
 
     def disconnect(self):
         """ Closes connection and disconnects """
-        self.client.loop_stop()
-        self.client.disconnect()
+        if self.client:
+            self.client.disconnect()
+            self.client.loop_stop()
         self.client = None
