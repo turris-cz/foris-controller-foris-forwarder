@@ -42,13 +42,15 @@ class Listener(LoggingMixin):
         return match.group(1)
 
     @staticmethod
-    def _extract_addresses(zconf: Zeroconf, name: str) -> typing.Optional[typing.List[ipaddress.IPv4Address]]:
+    def _extract_addresses_and_port(
+        zconf: Zeroconf, type: str, name: str
+    ) -> typing.Optional[typing.Tuple[typing.List[ipaddress.IPv4Address], int]]:
         info = zconf.get_service_info(type, name)
 
-        if b"addresses" not in info.properties:
+        if not info or not info.port or b"addresses" not in info.properties:
             return None
 
-        return [ipaddress.ip_address(ip) for ip in json.loads(info.properties[b"addresses"])]
+        return [ipaddress.ip_address(ip) for ip in json.loads(info.properties[b"addresses"])], int(info.port)
 
     def remove_service(self, zeroconf: Zeroconf, type: str, name: str):
         """ Called when service is removed (part of zconf API) """
@@ -58,7 +60,7 @@ class Listener(LoggingMixin):
         if not controller_id:  # other service
             return
         if self._remove_service_handler:
-            self.debug(f"Calling remove handler with {controller_id}")
+            self.debug(f"Calling remove handler {controller_id}")
             self._remove_service_handler(controller_id)
 
     def update_service(self, zeroconf: Zeroconf, type: str, name: str):
@@ -69,10 +71,10 @@ class Listener(LoggingMixin):
         if not controller_id:  # other service
             return
 
-        addresses = Listener._extract_addresses(zeroconf, name)
+        addresses, port = Listener._extract_addresses_port(zeroconf, type, name)
         if addresses and self._update_service_handler:
-            self.debug(f"Calling update handler with ({controller_id}, {[str(e) for e in addresses]})")
-            self._update_service_handler(controller_id, addresses)
+            self.debug(f"Calling update handler ({controller_id}, {[str(e) for e in addresses]} :{port})")
+            self._update_service_handler(controller_id, addresses, port)
 
     def add_service(self, zeroconf: Zeroconf, type: str, name: str):
         """ Called when service is added (part of zconf API) """
@@ -83,14 +85,14 @@ class Listener(LoggingMixin):
         if not controller_id:  # other service
             return
 
-        addresses = Listener._extract_addresses(zeroconf, name)
+        addresses, port = Listener._extract_addresses_and_port(zeroconf, type, name)
         if addresses and self._add_service_handler:
-            self.debug(f"Calling add handler with ({controller_id}, {[str(e) for e in addresses]})")
-            self._add_service_handler(controller_id, addresses)
+            self.debug(f"Calling add handler ({controller_id}, {[str(e) for e in addresses]} :{port})")
+            self._add_service_handler(controller_id, addresses, port)
 
     def set_add_service_handler(
         self,
-        handler: typing.Optional[typing.Callable[[str, typing.List[ipaddress.IPv4Address]], None]],
+        handler: typing.Optional[typing.Callable[[str, typing.List[ipaddress.IPv4Address], int], None]],
     ):
         """Sets add service handler
         :param handler: None or callable which takes controller_id(str) as argument
@@ -101,7 +103,7 @@ class Listener(LoggingMixin):
 
     def set_update_service_handler(
         self,
-        handler: typing.Optional[typing.Callable[[str, typing.List[ipaddress.IPv4Address]], None]],
+        handler: typing.Optional[typing.Callable[[str, typing.List[ipaddress.IPv4Address], int], None]],
     ):
         """Sets update service handler
         :param handler: None or callable which takes controller_id(str) as argument
@@ -120,11 +122,11 @@ class Listener(LoggingMixin):
     def __init__(self):
         self.debug("Staring zeroconf listener")
         self._add_service_handler: typing.Optional[
-            typing.Callable[[str, typing.List[ipaddress.IPv4Address]], None]
+            typing.Callable[[str, typing.List[ipaddress.IPv4Address], int], None]
         ] = None
         self._remove_service_handler: typing.Optional[typing.Callable[[str], None]] = None
         self._update_service_handler: typing.Optional[
-            typing.Callable[[str, typing.List[ipaddress.IPv4Address]], None]
+            typing.Callable[[str, typing.List[ipaddress.IPv4Address], int], None]
         ] = None
 
         self.zeroconf = Zeroconf()

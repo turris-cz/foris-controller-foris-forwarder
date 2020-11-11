@@ -84,7 +84,8 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
             for controller_id, supervisor in self._supervisors.items():
                 print(
                     supervisor.forwarder,
-                    f"{supervisor.forwarder.host.connected}-{supervisor.forwarder.subordinate.connected} {[str(e) for e in supervisor.ips]}",
+                    f"{supervisor.forwarder.host.connected}-{supervisor.forwarder.subordinate.connected} "
+                    f"{[str(e[0]) + ':' + str(e[1]) for e in supervisor.netlocs]}",
                 )
 
     def run(self) -> typing.NoReturn:
@@ -100,11 +101,11 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
         zconf_listener = ZconfListener()
 
         # hook to zconf listener to update list of ips
-        def zconf_handler(controller_id: str, addresses: typing.List[ipaddress.IPv4Address]):
-            self.debug(f"Recieved zconf update from {controller_id}: {[str(e) for e in addresses]}")
+        def zconf_handler(controller_id: str, addresses: typing.List[ipaddress.IPv4Address], port: int):
+            self.debug(f"Recieved zconf update from {controller_id}: {[str(e) for e in addresses]} :{port}")
             supervisor = self._supervisors.get(controller_id)
             if supervisor:
-                supervisor.zconf_update(addresses)
+                supervisor.zconf_update(addresses, port)
 
         zconf_listener.set_add_service_handler(zconf_handler)
 

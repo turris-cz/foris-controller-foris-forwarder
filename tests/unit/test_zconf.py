@@ -13,9 +13,10 @@ def test_zconf(zconf_announcer):
     added_queue = queue.Queue()
     removed_queue = queue.Queue()
 
-    def added_handler(controller_id: str, addresses: typing.List[ipaddress.IPv4Address]):
+    def added_handler(controller_id: str, addresses: typing.List[ipaddress.IPv4Address], port: int):
         added_queue.put(controller_id)
         added_queue.put(addresses)
+        added_queue.put(port)
 
     def removed_handler(controller_id: str):
         removed_queue.put(controller_id)
@@ -28,6 +29,8 @@ def test_zconf(zconf_announcer):
     addresses = added_queue.get(timeout=TIMEOUT)
     assert len(addresses) == 1
     assert addresses[0] == ipaddress.ip_address("127.0.0.1")
+    port = added_queue.get(timeout=TIMEOUT)
+    assert port == 11884
 
     zconf_announcer.close()
 

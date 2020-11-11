@@ -12,14 +12,14 @@ from .logger import LoggingMixin
 class ForwarderSupervisor(LoggingMixin):
     """Operations which should be performed with the forwared should be put here
 
-    It should handle reconnects and determine to what ip to connect
+    It should handle reconnects and determine to what (ip, port) to connect
     """
 
     NEXT_IP_TIMEOUT = 30.0  # in seconds
     ZCONF_BUFFER_COUNT = 100
 
-    class IpStat:
-        """ Ip triage statistics used for sorting ips in the list """
+    class NetlocStat:
+        """ Netloc triage statistics used for sorting netloc in the list """
 
         def __init__(self, fail_count: int, when: float):
             self.fail_count = fail_count
@@ -48,13 +48,16 @@ class ForwarderSupervisor(LoggingMixin):
         self.lock = threading.RLock()
         self.connected = False
 
-        # IP -> (failed_attempt_count, time)
-        # initalizes with subordinate ip
-        self._ips: typing.Dict[ipaddress.IPv4Address, ForwarderSupervisor.IpStat] = {
-            ipaddress.ip_address(self.forwarder.subordinate.settings.host): ForwarderSupervisor.IpStat(0, 0.0)
+        # (IP, port) -> (failed_attempt_count, time)
+        # initalizes with subordinate netloc
+        self._netlocs: typing.Dict[typing.Tuple[ipaddress.IPv4Address, int], ForwarderSupervisor.NetlocStat] = {
+            (
+                ipaddress.ip_address(self.forwarder.subordinate.settings.host),
+                self.forwarder.subordinate.settings.port,
+            ): ForwarderSupervisor.NetlocStat(0, 0.0)
         }
-        self.current_ip: ipaddress.IPv4Address = self.ips[0]
-        self.current_ip_start: float = time.monotonic()
+        self.current_netloc: typing.Tuple[ipaddress.IPv4Address, int] = self.netlocs[0]
+        self.current_netloc_start: float = time.monotonic()
 
         # start forwarder in background
         self.forwarder.start()
@@ -65,36 +68,36 @@ class ForwarderSupervisor(LoggingMixin):
 
         self.forwarder.stop()
 
-    def zconf_update(self, ips: typing.List[ipaddress.IPv4Address]):
+    def zconf_update(self, ips: typing.List[ipaddress.IPv4Address], port: int):
         """ update ips obtained using zconf """
         now = time.monotonic()
 
-        self.warning(f"Got addresses from zconf: {[str(e) for e in ips]}")
+        self.info(f"Got addresses from zconf: {[str(e) for e in ips]} :{port}")
 
         with self.lock:
             # merge two lists
             for ip in ips:
-                count = self._ips.get(ip, ForwarderSupervisor.IpStat(0, 0.0)).fail_count
-                self._ips[ip] = ForwarderSupervisor.IpStat(count, now)
+                count = self._netlocs.get((ip, port), ForwarderSupervisor.NetlocStat(0, 0.0)).fail_count
+                self._netlocs[(ip, port)] = ForwarderSupervisor.NetlocStat(count, now)
 
             # sort and fit to buffer
-            sorted_ips = sorted(((ip, stat) for ip, stat in self._ips.items()), key=lambda x: x[1])[
+            sorted_netlocs = sorted(((ip, stat) for ip, stat in self._netlocs.items()), key=lambda x: x[1])[
                 : ForwarderSupervisor.ZCONF_BUFFER_COUNT
             ]
             res = {}
-            for ip, stat in sorted_ips:
-                res[ip] = stat
+            for (ip, port), stat in sorted_netlocs:
+                res[(ip, port)] = stat
 
-            self._ips = res
+            self._netlocs = res
 
     @property
-    def ips(self) -> typing.List[ipaddress.IPv4Address]:
-        """Return current list of zconf IP addresses
+    def netlocs(self) -> typing.List[typing.Tuple[ipaddress.IPv4Address, int]]:
+        """Return current network locations where subordinate server might be running
 
         Addresses with better score first (min fail_count + most reacent)
         """
         with self.lock:
-            return [e[0] for e in sorted([(k, v) for k, v in self._ips.items()], key=lambda x: x[1])]
+            return [e[0] for e in sorted([(k, v) for k, v in self._netlocs.items()], key=lambda x: x[1])]
 
     def subsubordinates_config_update(self, subordinates):
         # TODO
@@ -107,28 +110,29 @@ class ForwarderSupervisor(LoggingMixin):
         now = time.monotonic()
 
         if self.forwarder.subordinate.connected:
-            # clean attempts for current ip to keep working address high in the list
+            # clean attempts for current netloc to keep working address high in the list
             with self.lock:
-                self.current_ip_start = now
-                record = self._ips.get(self.current_ip)
+                self.current_netloc_start = now
+                record = self._netlocs.get(self.current_netloc)
                 if record:
                     record.fail_count = 0
                     record.when = time.monotonic()
             return
 
         with self.lock:
-            if self.current_ip_start + ForwarderSupervisor.NEXT_IP_TIMEOUT < now:
-                # time up, lets use new ip_address
-                record = self._ips.get(self.current_ip)
+            if self.current_netloc_start + ForwarderSupervisor.NEXT_IP_TIMEOUT < now:
+                # time up, lets use new netloc
+                record = self._netlocs.get(self.current_netloc)
                 if record:
                     record.fail_count += 1
 
                 # Lets try new address
-                self.current_ip = self.ips[0]
-                self.current_ip_start = now
+                self.current_netloc = self.netlocs[0]
+                self.current_netloc_start = now
 
                 # Reload subordinate with a new config
-                new_config = self.forwarder.subordinate_conf.clone_with_overrides(ip=self.current_ip)
+                ip, port = self.current_netloc
+                new_config = self.forwarder.subordinate_conf.clone_with_overrides(ip=ip, port=port)
                 self.forwarder.reload_subordinate(new_config)
 
     def __str__(self):
