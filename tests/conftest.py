@@ -117,11 +117,17 @@ def mosquitto_host(prepare_ca):
     TOKEN_CRT_PATH = prepare_ca / "remote/02.crt"
     TOKEN_KEY_PATH = prepare_ca / "remote/02.key"
     PASSWORD_FILE_PATH = "/tmp/mosquitto-host.password"
+    PLAIN_FILE_PATH = "/tmp/mosquitto-host.plain"
     PERSISTENCE_FILE_PATH = "/tmp/mosquitto-host.db"
 
     # prepare password file
     with open(PASSWORD_FILE_PATH, "w"):
         pass
+    subprocess.run([MOSQUITTO_PASSWD_PATH, "-b", PASSWORD_FILE_PATH, USERNAME, PASSWORD])
+
+    with open(PLAIN_FILE_PATH, "w") as f:
+        f.write(f"{USERNAME}:{PASSWORD}\n")
+
     subprocess.run([MOSQUITTO_PASSWD_PATH, "-b", PASSWORD_FILE_PATH, USERNAME, PASSWORD])
 
     # prepare config file
@@ -162,7 +168,7 @@ require_certificate true
     # cleanup
     instance.kill()
 
-    for path in (PASSWORD_FILE_PATH, CONFIG_PATH, PERSISTENCE_FILE_PATH):
+    for path in (PASSWORD_FILE_PATH, PLAIN_FILE_PATH, CONFIG_PATH, PERSISTENCE_FILE_PATH):
         try:
             os.unlink(path)
         except Exception:

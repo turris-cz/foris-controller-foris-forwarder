@@ -5,3 +5,14 @@ line-length = 120
 line_length = 120
 multi_line_output = 3
 length_sort = false
+
+[tool.pytest.ini_options]
+addopts = "--verbose"
+testpaths = ["tests"]
+python_files = "test_*.py"
+console_output_style = "count"
+log_cli = "True"
+log_cli_level = "CRITICAL"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]

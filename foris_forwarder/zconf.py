@@ -71,7 +71,7 @@ class Listener(LoggingMixin):
         if not controller_id:  # other service
             return
 
-        addresses, port = Listener._extract_addresses_port(zeroconf, type, name)
+        addresses, port = Listener._extract_addresses_and_port(zeroconf, type, name)
         if addresses and self._update_service_handler:
             self.debug(f"Calling update handler ({controller_id}, {[str(e) for e in addresses]} :{port})")
             self._update_service_handler(controller_id, addresses, port)

@@ -298,7 +298,7 @@ class Forwarder(LoggingMixin):
         """ Registers subordinate message handlers """
 
         def subordinate_to_host(client, userdata, message: MQTTMessage):
-            self.debug("Msg from subordinate to host (len={len(message.payload)})")
+            self.debug(f"Msg from subordinate to host (len={len(message.payload)})")
             self.host_queue.put(Publish(message))
 
         self.subordinate.set_message_hook(subordinate_to_host)

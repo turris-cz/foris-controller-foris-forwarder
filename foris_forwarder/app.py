@@ -108,6 +108,7 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
                 supervisor.zconf_update(addresses, port)
 
         zconf_listener.set_add_service_handler(zconf_handler)
+        zconf_listener.set_update_service_handler(zconf_handler)
 
         while True:
             start_at = time.monotonic()
