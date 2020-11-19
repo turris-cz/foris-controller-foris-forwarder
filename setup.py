@@ -28,7 +28,7 @@ It is also capable of discovering subordinates in the network using Zeroconf.
 
 setup(
     name="foris-forwarder",
-    version="0.1.0",
+    version="0.2.0",
     author="CZ.NIC, z.s.p.o. (http://www.nic.cz/)",
     author_email="stepan.henek@nic.cz",
     packages=["foris_forwarder"],
