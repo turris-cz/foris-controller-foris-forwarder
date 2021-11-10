@@ -53,7 +53,7 @@ class Listener(LoggingMixin):
         return [ipaddress.ip_address(ip) for ip in json.loads(info.properties[b"addresses"])], int(info.port)
 
     def remove_service(self, zeroconf: Zeroconf, type: str, name: str):
-        """ Called when service is removed (part of zconf API) """
+        """Called when service is removed (part of zconf API)"""
         self.debug(f"Got message that service '{name}' was removed")
 
         controller_id = Listener._extract_controller_id_from_name(name)
@@ -64,7 +64,7 @@ class Listener(LoggingMixin):
             self._remove_service_handler(controller_id)
 
     def update_service(self, zeroconf: Zeroconf, type: str, name: str):
-        """ Called when service is updated (part of zconf API) """
+        """Called when service is updated (part of zconf API)"""
         self.debug(f"Got message that service '{name}' was updated")
 
         controller_id = Listener._extract_controller_id_from_name(name)
@@ -77,7 +77,7 @@ class Listener(LoggingMixin):
             self._update_service_handler(controller_id, addresses, port)
 
     def add_service(self, zeroconf: Zeroconf, type: str, name: str):
-        """ Called when service is added (part of zconf API) """
+        """Called when service is added (part of zconf API)"""
 
         self.debug(f"Got message that service {name} was registered")
 

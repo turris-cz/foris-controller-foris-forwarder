@@ -19,7 +19,7 @@ def wait_for_connected(client: Client):
 
 
 def test_notification(host_settings, subordinate_settings, connected_forwarder, wait_for_disconnected):
-    """ Notifications should be send by the subordinate and received by the host """
+    """Notifications should be send by the subordinate and received by the host"""
     _, host_settings, _ = host_settings
     host_settings.controller_id = "1111111111111111"
     host_client = Client(host_settings)
@@ -71,7 +71,7 @@ def test_notification(host_settings, subordinate_settings, connected_forwarder, 
 
 
 def test_request(host_settings, subordinate_settings, connected_forwarder, wait_for_disconnected):
-    """ Requests should be sent by the host and received by the subordinate """
+    """Requests should be sent by the host and received by the subordinate"""
     _, host_settings, _ = host_settings
     host_settings.controller_id = "3333333333333333"
     host_client = Client(host_settings)
@@ -123,7 +123,7 @@ def test_request(host_settings, subordinate_settings, connected_forwarder, wait_
 
 
 def test_reply(host_settings, subordinate_settings, connected_forwarder, wait_for_disconnected):
-    """ Replies should be sent by the subordinate and received by the host """
+    """Replies should be sent by the subordinate and received by the host"""
     _, host_settings, _ = host_settings
     host_settings.controller_id = "5555555555555555"
     host_client = Client(host_settings)

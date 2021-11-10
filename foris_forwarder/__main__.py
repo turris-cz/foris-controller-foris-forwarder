@@ -41,7 +41,7 @@ def read_passwd_file(path: str) -> typing.Sequence[str]:
 
 
 def directory_path(path: str) -> pathlib.Path:
-    """ Checks whether file exists and is a directory"""
+    """Checks whether file exists and is a directory"""
     parsed = pathlib.Path(path)
     if not parsed.is_dir():
         raise ValueError(f"`{path}` is not a directory")
@@ -50,7 +50,7 @@ def directory_path(path: str) -> pathlib.Path:
 
 
 def convert_to_controller_id(controller_id: str) -> str:
-    """ Checks whether controller id is in correct format and normalizes it (convert to upper) """
+    """Checks whether controller id is in correct format and normalizes it (convert to upper)"""
     match = re.match(r"[0-9a-zA-Z]{16}", controller_id)
     if not match:
         raise ValueError(f"`{controller_id}` is not a valid controller id")

@@ -19,7 +19,7 @@ class ForwarderSupervisor(LoggingMixin):
     ZCONF_BUFFER_COUNT = 100
 
     class NetlocStat:
-        """ Netloc triage statistics used for sorting netloc in the list """
+        """Netloc triage statistics used for sorting netloc in the list"""
 
         def __init__(self, fail_count: int, when: float):
             self.fail_count = fail_count
@@ -63,13 +63,13 @@ class ForwarderSupervisor(LoggingMixin):
         self.forwarder.start()
 
     def terminate(self):
-        """ causes that forwarder eventually terminates """
+        """causes that forwarder eventually terminates"""
         self.debug("Supervisor terminating")
 
         self.forwarder.stop()
 
     def zconf_update(self, ips: typing.List[ipaddress.IPv4Address], port: int):
-        """ update ips obtained using zconf """
+        """update ips obtained using zconf"""
         now = time.monotonic()
 
         self.info(f"Got addresses from zconf: {[str(e) for e in ips]} :{port}")

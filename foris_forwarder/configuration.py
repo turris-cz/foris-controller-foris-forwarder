@@ -46,7 +46,7 @@ class BaseBus(LoggingMixin, metaclass=ABCMeta):
 
 
 class Host(BaseBus):
-    """ Local bus """
+    """Local bus"""
 
     enabled = True
 
@@ -66,7 +66,7 @@ class Host(BaseBus):
 
 
 class Subordinate(BaseBus):
-    """ 1st level buses """
+    """1st level buses"""
 
     def __init__(
         self,
@@ -122,7 +122,7 @@ class Subordinate(BaseBus):
 
 
 class Subsubordinate:
-    """ 2nd level buses """
+    """2nd level buses"""
 
     def __init__(self, controller_id: str, via: str, enabled: bool):
         self.controller_id = controller_id
@@ -194,17 +194,17 @@ class Configuration(LoggingMixin):
 
     @property
     def host(self) -> Host:
-        """ Returns the global configuration """
+        """Returns the global configuration"""
         return copy.deepcopy(self._host)
 
     @property
     def subordinates(self) -> typing.Dict[str, Subordinate]:
-        """ List current subordinates """
+        """List current subordinates"""
         return copy.deepcopy(self._subordinates)
 
     @property
     def subsubordinates(self) -> typing.Dict[str, Subsubordinate]:
-        """ List current subsubordinates """
+        """List current subsubordinates"""
         return copy.deepcopy(self._subsubordinates)
 
     def __str__(self):

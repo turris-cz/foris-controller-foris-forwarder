@@ -33,7 +33,7 @@ from .zconf import Listener as ZconfListener
 
 
 class SingletonAppMeta(ABCMeta):  # ABCMeta is metaclass of LoggingMixin (it needs to be used here as well)
-    """ Make sure that there is only one app instance created """
+    """Make sure that there is only one app instance created"""
 
     instance_created: bool = False
 
@@ -78,7 +78,7 @@ class App(LoggingMixin, metaclass=SingletonAppMeta):  # type: ignore
         self._supervisors: typing.Dict[str, ForwarderSupervisor] = {}
 
     def print_forwarders(self):
-        """ Prints forwarders with its connection state to stdout """
+        """Prints forwarders with its connection state to stdout"""
 
         with self._supervisors_lock:
             for controller_id, supervisor in self._supervisors.items():

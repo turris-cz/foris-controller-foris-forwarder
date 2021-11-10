@@ -30,7 +30,7 @@ ZCONF_TIMEOUT = 60.0 * 3  # three minutes
 
 @pytest.fixture(scope="function")
 def mosquitto_subordinate_alternative(prepare_ca):
-    """ Mocks mqtt alternative subordinate (listens on network uses certificates)"""
+    """Mocks mqtt alternative subordinate (listens on network uses certificates)"""
     PORT = 11891
     CONFIG_PATH = "/tmp/mosquitto-subordinate-alternative.conf"
     CRT_PATH = prepare_ca / "remote/01.crt"

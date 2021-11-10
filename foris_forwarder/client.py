@@ -133,7 +133,7 @@ class Client(LoggingMixin):
         return bool(self.client) and self._connected.is_set()
 
     def wait_until_connected(self, timeout: typing.Optional[float] = None):
-        """ blocks current thread until client is connected """
+        """blocks current thread until client is connected"""
         self._connected.wait(timeout)
 
     def connect(self):
@@ -258,7 +258,7 @@ class Client(LoggingMixin):
             return False
 
     def disconnect(self):
-        """ Closes connection and disconnects """
+        """Closes connection and disconnects"""
         if self.client:
             self.client.disconnect()
             self.client.loop_stop()

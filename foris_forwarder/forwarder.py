@@ -179,7 +179,7 @@ class Forwarder(LoggingMixin):
         subordinate_conf: SubordinateConf,
         subsubordinate_confs: typing.List[SubsubordinateConf] = None,
     ):
-        """ Initializes forwarder """
+        """Initializes forwarder"""
 
         self.host_conf = host_conf
         self.host = Client(
@@ -283,7 +283,7 @@ class Forwarder(LoggingMixin):
             item.perform(self.host, timeout=QUEUE_TIMEOUT)
 
     def register_message_handlers(self):
-        """ Register message handlers for forwarding """
+        """Register message handlers for forwarding"""
 
         # setting message hooks
         def host_to_subordinate(client, userdata, message: MQTTMessage):
@@ -295,7 +295,7 @@ class Forwarder(LoggingMixin):
         self.register_subordinate_message_handlers()
 
     def register_subordinate_message_handlers(self):
-        """ Registers subordinate message handlers """
+        """Registers subordinate message handlers"""
 
         def subordinate_to_host(client, userdata, message: MQTTMessage):
             self.debug(f"Msg from subordinate to host (len={len(message.payload)})")
@@ -314,7 +314,7 @@ class Forwarder(LoggingMixin):
         )
 
     def start(self):
-        """ Seth the hooks and starts to connect to both subordinate and host """
+        """Seth the hooks and starts to connect to both subordinate and host"""
 
         # start the workers
         self.debug("Starting workers")
@@ -322,7 +322,7 @@ class Forwarder(LoggingMixin):
         self.subordinate_queue_worker.start()
 
     def stop(self):
-        """ Send request to disconnect """
+        """Send request to disconnect"""
         self.debug("Stopping")
 
         # Disconnect

@@ -19,7 +19,7 @@ TIMEOUT = 30.0
 
 @pytest.fixture(scope="session")
 def prepare_ca():
-    """ Prepares CA and its certificates """
+    """Prepares CA and its certificates"""
     os.makedirs(CA_PATH, exist_ok=True)
     subprocess.run(["tar", "xzf", str(BASE_DIR / "data/ca/remote.tar.gz"), "-C", str(CA_PATH)])
     yield CA_PATH
@@ -52,7 +52,7 @@ def token_dir(prepare_ca):
 
 @pytest.fixture(scope="function")
 def mosquitto_super():
-    """ Mocks mqtt super server (above host) """
+    """Mocks mqtt super server (above host)"""
     PASSWORD = "password"
     USERNAME = "username"
     PORT = 11888
@@ -104,7 +104,7 @@ bind_address localhost
 
 @pytest.fixture(scope="function")
 def mosquitto_host(prepare_ca):
-    """ Mocks mqtt host server (listens on localhost, password authentication) """
+    """Mocks mqtt host server (listens on localhost, password authentication)"""
     PASSWORD = "password"
     USERNAME = "username"
     PORT = 11883
@@ -179,7 +179,7 @@ require_certificate true
 
 @pytest.fixture(scope="function")
 def mosquitto_subordinate(prepare_ca):
-    """ Mocks mqtt subordinate (listens on network uses certificates)"""
+    """Mocks mqtt subordinate (listens on network uses certificates)"""
     PORT = 11884
     CONFIG_PATH = "/tmp/mosquitto-subordinate.conf"
     CRT_PATH = prepare_ca / "remote/01.crt"
