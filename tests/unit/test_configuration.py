@@ -20,11 +20,16 @@ def test_uci():
     assert conf.host.username == "username"
     assert conf.host.password == "password"
 
-    assert len(conf.subordinates) == 1
-    controller_id, subordinate = list(conf.subordinates.items())[0]
+    assert len(conf.subordinates) == 2
+    subordinates = sorted(list(conf.subordinates.items()), key=lambda e: e[0])
+    controller_id, subordinate = subordinates[0]
     assert subordinate.enabled is True
     assert subordinate.controller_id == controller_id == "0000000A00000214"
     assert subordinate.address == "192.168.15.158:11884"
+    controller_id, subordinate = subordinates[1]
+    assert subordinate.enabled is True
+    assert subordinate.controller_id == controller_id == "0000000D30000010"
+    assert subordinate.address == "192.0.0.8:11881", "Dummy ipv4 address"
 
     assert len(conf.subsubordinates) == 1
     controller_id, subsubordinate = list(conf.subsubordinates.items())[0]

@@ -167,7 +167,13 @@ class Configuration(LoggingMixin):
             subordinates_uci = [k for k in eu.get("fosquitto") if eu.get("fosquitto", k) == "subordinate"]
             for controller_id in subordinates_uci:
                 enabled = eu.get("fosquitto", controller_id, "enabled", dtype=bool, default=True)
-                ip = eu.get("fosquitto", controller_id, "address", dtype=IPv4Address)
+                ip = eu.get(
+                    "fosquitto",
+                    controller_id,
+                    "address",
+                    dtype=IPv4Address,
+                    default=IPv4Address("192.0.0.8"),  # IPv4 dummy address (according to IANA)
+                )
                 port = eu.get("fosquitto", controller_id, "int", dtype=int, default=11884)
 
                 try:

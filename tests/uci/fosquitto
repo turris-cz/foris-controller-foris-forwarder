@@ -26,6 +26,11 @@ config subordinate '0000000D30000005'
 	option address '192.168.15.254'
 	option port '11884'
 
+# subordinate without IP address
+config subordinate '0000000D30000010'
+	option enabled '1'
+	option port '11881'
+
 # ok
 config subsubordinate '1100D858D7001A2E'
 	option via '0000000A00000214'
