@@ -35,7 +35,32 @@ class Listener(LoggingMixin):
     logger = logging.getLogger(__file__)
 
     @staticmethod
+    def _extract(
+        zconf: Zeroconf, type: str, name: str
+    ) -> typing.Optional[typing.Tuple[str, typing.List[ipaddress.IPv4Address], int]]:
+        """Used for new zconf settings"""
+
+        if type != "_fosquitto._tcp":
+            return None
+
+        info = zconf.get_service_info(type, name)
+
+        if not info or not info.port or b"id" not in info.properties:
+            return None
+
+        controller_id = info.properties[b"id"].decode()
+
+        if not re.match(r"^[0-9a-fA-F]{16}", controller_id):
+            return None
+
+        addresses = [ipaddress.ip_address(ip) for ip in info.addresses]
+
+        return controller_id, addresses, info.port
+
+    @staticmethod
     def _extract_controller_id_from_name(name: str) -> typing.Optional[str]:
+        """Used for old zconf settings"""
+
         match = re.match(fr"([^\.]+).{Listener.NAME}.{Listener.TYPE}", name)
         if not match:
             return None  # other service
@@ -45,6 +70,8 @@ class Listener(LoggingMixin):
     def _extract_addresses_and_port(
         zconf: Zeroconf, type: str, name: str
     ) -> typing.Optional[typing.Tuple[typing.List[ipaddress.IPv4Address], int]]:
+        """Used for old zconf settings"""
+
         info = zconf.get_service_info(type, name)
 
         if not info or not info.port or b"addresses" not in info.properties:
@@ -56,9 +83,15 @@ class Listener(LoggingMixin):
         """Called when service is removed (part of zconf API)"""
         self.debug(f"Got message that service '{name}' was removed")
 
-        controller_id = Listener._extract_controller_id_from_name(name)
-        if not controller_id:  # other service
-            return
+        extracted = self._extract(zeroconf, type, name)
+        if not extracted:
+            # try old method
+            controller_id = Listener._extract_controller_id_from_name(name)
+            if not controller_id:  # other service
+                return
+        else:
+            controller_id, _, _ = extracted
+
         if self._remove_service_handler:
             self.debug(f"Calling remove handler {controller_id}")
             self._remove_service_handler(controller_id)
@@ -67,11 +100,16 @@ class Listener(LoggingMixin):
         """Called when service is updated (part of zconf API)"""
         self.debug(f"Got message that service '{name}' was updated")
 
-        controller_id = Listener._extract_controller_id_from_name(name)
-        if not controller_id:  # other service
-            return
+        extracted = self._extract(zeroconf, type, name)
+        if not extracted:
+            # try old method
+            controller_id = Listener._extract_controller_id_from_name(name)
+            if not controller_id:  # other service
+                return
+            addresses, port = Listener._extract_addresses_and_port(zeroconf, type, name)
+        else:
+            controller_id, addresses, port = extracted
 
-        addresses, port = Listener._extract_addresses_and_port(zeroconf, type, name)
         if addresses and self._update_service_handler:
             self.debug(f"Calling update handler ({controller_id}, {[str(e) for e in addresses]} :{port})")
             self._update_service_handler(controller_id, addresses, port)
@@ -81,11 +119,16 @@ class Listener(LoggingMixin):
 
         self.debug(f"Got message that service {name} was registered")
 
-        controller_id = Listener._extract_controller_id_from_name(name)
-        if not controller_id:  # other service
-            return
+        extracted = self._extract(zeroconf, type, name)
+        if not extracted:
+            # try old method
+            controller_id = Listener._extract_controller_id_from_name(name)
+            if not controller_id:  # other service
+                return
+            addresses, port = Listener._extract_addresses_and_port(zeroconf, type, name)
+        else:
+            controller_id, addresses, port = extracted
 
-        addresses, port = Listener._extract_addresses_and_port(zeroconf, type, name)
         if addresses and self._add_service_handler:
             self.debug(f"Calling add handler ({controller_id}, {[str(e) for e in addresses]} :{port})")
             self._add_service_handler(controller_id, addresses, port)
