@@ -174,7 +174,7 @@ class Configuration(LoggingMixin):
                     dtype=IPv4Address,
                     default=IPv4Address("192.0.0.8"),  # IPv4 dummy address (according to IANA)
                 )
-                port = eu.get("fosquitto", controller_id, "int", dtype=int, default=11884)
+                port = eu.get("fosquitto", controller_id, "port", dtype=int, default=11884)
 
                 try:
                     subordinate = Subordinate(controller_id, ip, port, enabled, self.fosquitto_data_dir)
