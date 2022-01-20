@@ -14,11 +14,13 @@ def test_zconf(zconf_announcer):
     removed_queue = queue.Queue()
 
     def added_handler(controller_id: str, addresses: typing.List[ipaddress.IPv4Address], port: int):
+        print("DASFADSFAS")
         added_queue.put(controller_id)
         added_queue.put(addresses)
         added_queue.put(port)
 
     def removed_handler(controller_id: str):
+        print("QQQQQQQQQQQQQ")
         removed_queue.put(controller_id)
 
     listener.set_add_service_handler(added_handler)

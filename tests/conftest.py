@@ -1,3 +1,4 @@
+import getpass
 import ipaddress
 import os
 import pathlib
@@ -77,16 +78,20 @@ autosave_interval 0
 persistence true
 persistence_file {PERSISTENCE_FILE_PATH}
 queue_qos0_messages true
-password_file {PASSWORD_FILE_PATH}
-allow_anonymous false
 
-port {PORT}
-bind_address localhost
+user {getpass.getuser()}
+
+listener {PORT} 127.0.0.1
+allow_anonymous false
+password_file {PASSWORD_FILE_PATH}
 """
         )
 
     # start process
-    instance = subprocess.Popen([MOSQUITTO_PATH, "-v", "-c", CONFIG_PATH])
+    args = [MOSQUITTO_PATH, "-c", CONFIG_PATH]
+    if os.environ.get("FF_TEST_DEBUG", "0") == "1":
+        args.append("-v")
+    instance = subprocess.Popen(args)
 
     yield instance, USERNAME, PASSWORD, PORT
 
@@ -142,13 +147,15 @@ autosave_interval 0
 persistence true
 persistence_file {PERSISTENCE_FILE_PATH}
 queue_qos0_messages true
+
+user {getpass.getuser()}
+
+listener {PORT} 127.0.0.1
 password_file {PASSWORD_FILE_PATH}
 allow_anonymous false
 
-port {PORT}
-bind_address localhost
-
 listener {PORT_REMOTE} 0.0.0.0
+allow_anonymous false
 protocol mqtt
 tls_version tlsv1.2
 use_identity_as_username true
@@ -161,7 +168,10 @@ require_certificate true
         )
 
     # start process
-    instance = subprocess.Popen([MOSQUITTO_PATH, "-v", "-c", CONFIG_PATH])
+    args = [MOSQUITTO_PATH, "-c", CONFIG_PATH]
+    if os.environ.get("FF_TEST_DEBUG", "0") == "1":
+        args.append("-v")
+    instance = subprocess.Popen(args)
 
     yield instance, USERNAME, PASSWORD, PORT, PORT_REMOTE, TOKEN_CRT_PATH, TOKEN_KEY_PATH, CA_PATH
 
@@ -202,12 +212,14 @@ autosave_interval 0
 persistence true
 persistence_file {PERSISTENCE_FILE_PATH}
 queue_qos0_messages true
+
+user {getpass.getuser()}
+
+listener 11880 127.0.0.1
 allow_anonymous true
 
-port 11880  # should be unique
-bind_address 127.0.0.1
-
 listener {PORT} 0.0.0.0
+allow_anonymous false
 protocol mqtt
 tls_version tlsv1.2
 use_identity_as_username true
@@ -220,7 +232,10 @@ require_certificate true
         )
 
     # start process
-    instance = subprocess.Popen([MOSQUITTO_PATH, "-v", "-c", CONFIG_PATH])
+    args = [MOSQUITTO_PATH, "-c", CONFIG_PATH]
+    if os.environ.get("FF_TEST_DEBUG", "0") == "1":
+        args.append("-v")
+    instance = subprocess.Popen(args)
 
     yield instance, PORT, TOKEN_KEY_PATH, TOKEN_CRT_PATH, CA_PATH
 

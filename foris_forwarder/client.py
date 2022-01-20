@@ -215,7 +215,7 @@ class Client(LoggingMixin):
                 self.debug(f"Publishing message to '{topic}' (mid={message.mid})")
                 return message.mid
             else:
-                self.warning(f"Failed to publish message to '{topic}'", topic)
+                self.warning(f"Failed to publish message to '{topic}'")
                 return None
         else:
             self.warning(f"Disconnected, can't send message to '{topic}'")

@@ -1,6 +1,6 @@
 #
 # foris-controller
-# Copyright (C) 2020 CZ.NIC, z.s.p.o. (http://www.nic.cz/)
+# Copyright (C) 2022 CZ.NIC, z.s.p.o. (http://www.nic.cz/)
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,8 @@ from .logger import LoggingMixin
 
 
 class Listener(LoggingMixin):
-    TYPE = "_mqtt._tcp.local."
+    TYPE_OLD = "_mqtt._tcp.local."
+    TYPE_NEW = "_fosquitto._tcp.local."
     NAME = "foris-controller"
 
     logger = logging.getLogger(__file__)
@@ -40,12 +41,20 @@ class Listener(LoggingMixin):
     ) -> typing.Optional[typing.Tuple[str, typing.List[ipaddress.IPv4Address], int]]:
         """Used for new zconf settings"""
 
-        if type != "_fosquitto._tcp":
+        if type != "_fosquitto._tcp.local.":
             return None
 
         info = zconf.get_service_info(type, name)
 
-        if not info or not info.port or b"id" not in info.properties:
+        if not info:
+            # This means that service was unregister
+            # and no info can be obtained
+            # Try to at least extract controller id from name
+            match = re.match(fr"(^[0-9a-fA-F]{{16}}).{Listener.TYPE_NEW}", name)
+            controller_id = "" if not match else match.group(1)
+            return (controller_id, [], 0)
+
+        if not info.port or b"id" not in info.properties:
             return None
 
         controller_id = info.properties[b"id"].decode()
@@ -61,7 +70,7 @@ class Listener(LoggingMixin):
     def _extract_controller_id_from_name(name: str) -> typing.Optional[str]:
         """Used for old zconf settings"""
 
-        match = re.match(fr"([^\.]+).{Listener.NAME}.{Listener.TYPE}", name)
+        match = re.match(fr"([^\.]+).{Listener.NAME}.{Listener.TYPE_OLD}", name)
         if not match:
             return None  # other service
         return match.group(1)
@@ -93,8 +102,11 @@ class Listener(LoggingMixin):
             controller_id, _, _ = extracted
 
         if self._remove_service_handler:
-            self.debug(f"Calling remove handler {controller_id}")
-            self._remove_service_handler(controller_id)
+            if controller_id:
+                self.debug(f"Calling remove handler {controller_id}")
+                self._remove_service_handler(controller_id)
+            else:
+                self.info("Couldn't obtain controller_id from zconf while removing service")
 
     def update_service(self, zeroconf: Zeroconf, type: str, name: str):
         """Called when service is updated (part of zconf API)"""
@@ -173,7 +185,9 @@ class Listener(LoggingMixin):
         ] = None
 
         self.zeroconf = Zeroconf()
-        self.browser = ServiceBrowser(self.zeroconf, self.TYPE, self)
+        service_types = [self.TYPE_NEW, self.TYPE_OLD]
+        self.debug(f"Listening for: {service_types}")
+        self.browser = ServiceBrowser(self.zeroconf, service_types, self)
 
     def close(self):
         self.browser = None

@@ -1,4 +1,5 @@
 import json
+import socket
 import threading
 
 import pytest
@@ -56,15 +57,27 @@ def wait_for_disconnected():
     return func
 
 
-@pytest.fixture(scope="function")
-def zconf_announcer():
-    info = zeroconf.ServiceInfo(
-        "_mqtt._tcp.local.",
-        "000000050000006B.foris-controller._mqtt._tcp.local.",
-        parsed_addresses=["127.0.0.1"],
-        properties={"addresses": json.dumps(["127.0.0.1"])},
-        port=11884,
-    )
+@pytest.fixture(params=["new", "old"], scope="function")
+def zconf_announcer(request):
+    if request.param == "old":
+        info = zeroconf.ServiceInfo(
+            "_mqtt._tcp.local.",
+            "000000050000006B.foris-controller._mqtt._tcp.local.",
+            parsed_addresses=["127.0.0.1"],
+            properties={"addresses": json.dumps(["127.0.0.1"])},
+            port=11884,
+        )
+
+    elif request.param == "new":
+        hostname = socket.gethostname()
+        info = zeroconf.ServiceInfo(
+            "_fosquitto._tcp.local.",
+            f"{hostname}._fosquitto._tcp.local.",
+            parsed_addresses=["127.0.0.1"],
+            properties={"id": "000000050000006B"},
+            port=11884,
+            server=f"{hostname}.local.",
+        )
 
     zconf = zeroconf.Zeroconf()
     zconf.register_service(info)

@@ -1,3 +1,4 @@
+import os
 import signal
 import subprocess
 import time
@@ -13,23 +14,26 @@ TIMEOUT = 30.0
 def foris_controller(connected_forwarder):
     controller_id = "000000050000006B"
 
+    args = [
+        "foris-controller",
+        "-b",
+        "mock",
+        "mqtt",
+        "--controller-id",
+        controller_id,
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "11880",
+        "--zeroconf-enabled",
+        "--zeroconf-port",
+        "11884",
+    ]
+    if os.environ.get("FF_TEST_DEBUG", "0") == "1":
+        args.insert(0, "-d")
+
     instance = subprocess.Popen(
-        [
-            "foris-controller",
-            "-d",
-            "-b",
-            "mock",
-            "mqtt",
-            "--controller-id",
-            controller_id,
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "11880",
-            "--zeroconf-enabled",
-            "--zeroconf-port",
-            "11884",
-        ],
+        args,
         preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGKILL),
     )
 
