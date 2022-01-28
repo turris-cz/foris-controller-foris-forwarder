@@ -31,7 +31,7 @@ setup(
     version="0.2.0",
     author="CZ.NIC, z.s.p.o. (http://www.nic.cz/)",
     author_email="stepan.henek@nic.cz",
-    packages=["foris_forwarder"],
+    packages=["foris_forwarder", "foris_forwarder.listener"],
     url="https://gitlab.nic.cz/turris/foris-controller/foris-forwarder",
     license="GPLv3",
     description=DESCRIPTION,
@@ -57,5 +57,10 @@ setup(
             "python-prctl",
         ],
     },
-    entry_points={"console_scripts": ["foris-forwarder = foris_forwarder.__main__:main"]},
+    entry_points={
+        "console_scripts": [
+            "foris-forwarder = foris_forwarder.__main__:main",
+            "foris-forwarder-listener = foris_forwarder.listener.__main__:main",
+        ]
+    },
 )

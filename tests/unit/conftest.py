@@ -69,14 +69,13 @@ def zconf_announcer(request):
         )
 
     elif request.param == "new":
-        hostname = socket.gethostname()
         info = zeroconf.ServiceInfo(
             "_fosquitto._tcp.local.",
-            f"{hostname}._fosquitto._tcp.local.",
+            "000000050000006B._fosquitto._tcp.local.",
             parsed_addresses=["127.0.0.1"],
             properties={"id": "000000050000006B"},
             port=11884,
-            server=f"{hostname}.local.",
+            server=f"{socket.gethostname()}.local.",
         )
 
     zconf = zeroconf.Zeroconf()
