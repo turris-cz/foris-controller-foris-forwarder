@@ -25,9 +25,6 @@ def foris_controller(connected_forwarder):
         "127.0.0.1",
         "--port",
         "11880",
-        "--zeroconf-enabled",
-        "--zeroconf-port",
-        "11884",
     ]
     if os.environ.get("FF_TEST_DEBUG", "0") == "1":
         args.insert(0, "-d")

@@ -109,9 +109,6 @@ def foris_controller1(mosquitto_subordinate):
         "127.0.0.1",
         "--port",
         "11880",
-        "--zeroconf-enabled",
-        "--zeroconf-port",
-        "11884",
         "--announcer-period",
         "0",
     ]
