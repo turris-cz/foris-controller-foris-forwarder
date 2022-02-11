@@ -1,3 +1,10 @@
+0.3.0 (2022-02-11)
+------------------
+
+* various fixes
+* new zeroconf scheme
+* handle only remote IPs in zconf
+
 0.2.0 (2020-11-19)
 ------------------
 
