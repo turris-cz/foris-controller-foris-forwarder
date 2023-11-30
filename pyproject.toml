@@ -1,3 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "foris-forwarder"
+version = "0.3.0"
+dynamic = []
+description = "Forwards Foris MQTT messages from/to subordinate message bus. It is also capable of discovering subordinates in the network using Zeroconf."
+readme = "README.rst"
+license = "GPL-3.0"
+authors = [
+    { name = "CZ.NIC, z.s.p.o. (http://www.nic.cz/)", email = "stepan.henek@nic.cz" },
+]
+dependencies = [
+    "paho-mqtt",
+    "pyuci",
+    "zeroconf",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "flake8",
+    "isort",
+    "pre-commit",
+]
+tests = [
+    "foris-client",
+    "foris-controller",
+    "pytest",
+    "pytest-cov",
+    "python-prctl",
+    "tox",
+]
+
+[project.scripts]
+foris-forwarder = "foris_forwarder.__main__:main"
+foris-forwarder-listener = "foris_forwarder.listener.__main__:main"
+
+[project.urls]
+Homepage = "https://gitlab.nic.cz/turris/foris-controller/foris-forwarder"
+
+[tool.hatch.version]
+path = "foris_forwarder/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/foris_forwarder",
+]
+
 [tool.black]
 line-length = 120
 
